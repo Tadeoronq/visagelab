@@ -1,35 +1,159 @@
-<!-- Visor de Video con Proporción Nativa (Sustituir en index.html) -->
-<section class="lg:col-span-2 bg-slate-900 rounded-xl p-4 border border-slate-800 flex flex-col items-center justify-center relative">
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>VisageLab - Biometría & Colorimetría</title>
   
-  <div class="canvas-container shadow-2xl border border-slate-800">
-    <video id="webcam" autoplay playsinline muted></video>
-    <canvas id="output_canvas"></canvas>
-  </div>
+  <!-- Estilos y Librerías -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js" crossorigin="anonymous"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
+  
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen font-sans p-4">
 
-  <!-- Botón de Captura Fotográfica -->
-  <div class="mt-4 flex justify-center items-center w-full gap-4">
-    <button id="btnCapture" class="bg-emerald-600 hover:bg-emerald-500 text-white px-6 py-2.5 rounded-xl font-bold text-sm shadow-lg shadow-emerald-900/30 transition-all flex items-center gap-2">
-      <span>📸 Capturar Foto (<span id="captureStepText">Frontal</span>)</span>
-    </button>
-  </div>
+  <!-- Encabezado Principal -->
+  <header class="max-w-7xl mx-auto mb-6 flex flex-col md:flex-row justify-between items-center border-b border-slate-800 pb-4 gap-4">
+    <div>
+      <h1 class="text-2xl font-bold text-blue-400">VisageLab <span class="text-xs text-slate-400 font-normal">v2.6 Clinical</span></h1>
+      <p class="text-xs text-slate-500">Diagnóstico Biométrico & Colorimetría Fotométrica</p>
+    </div>
 
-  <!-- Panel Semáforo de Calidad -->
-  <div class="w-full mt-4 bg-slate-950 p-3 rounded-lg border border-slate-800 grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
-    <div id="status-light" class="flex items-center gap-2 p-1.5 rounded bg-slate-900 border border-slate-800">
-      <span class="w-2.5 h-2.5 rounded-full bg-slate-600" id="dot-light"></span>
-      <span class="text-slate-300">Luz / Iluminación</span>
+    <!-- Controles del Sujeto y Dispositivos -->
+    <div class="flex flex-wrap items-center gap-3">
+      <!-- Selector de Sexo -->
+      <div class="flex items-center bg-slate-900 border border-slate-700 rounded-lg p-1 text-xs">
+        <label class="flex items-center gap-1 px-2 py-1 rounded cursor-pointer hover:bg-slate-800">
+          <input type="radio" name="genderSelect" value="male" checked class="text-blue-600 focus:ring-blue-500">
+          <span>Hombre</span>
+        </label>
+        <label class="flex items-center gap-1 px-2 py-1 rounded cursor-pointer hover:bg-slate-800">
+          <input type="radio" name="genderSelect" value="female" class="text-rose-500 focus:ring-rose-500">
+          <span>Mujer</span>
+        </label>
+      </div>
+
+      <!-- Campo de Edad -->
+      <div class="flex items-center bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-xs gap-1">
+        <span class="text-slate-400">Edad:</span>
+        <input type="number" id="ageInput" value="25" min="1" max="120" class="w-12 bg-transparent text-slate-200 outline-none font-bold text-center">
+      </div>
+
+      <!-- Selector Dinámico de Cámara -->
+      <select id="cameraSelect" class="bg-slate-900 border border-slate-700 text-xs text-slate-200 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 outline-none">
+        <option value="">Buscando cámaras...</option>
+      </select>
+
+      <!-- Botón de Exportación PDF (Se habilita al completar todas las fotos) -->
+      <button id="btnExportPDF" class="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-lg font-medium transition-all text-xs flex items-center gap-2 opacity-50 cursor-not-allowed" disabled>
+        <span>📄 Exportar Expediente PDF</span>
+      </button>
     </div>
-    <div id="status-contrast" class="flex items-center gap-2 p-1.5 rounded bg-slate-900 border border-slate-800">
-      <span class="w-2.5 h-2.5 rounded-full bg-slate-600" id="dot-contrast"></span>
-      <span class="text-slate-300">Contraste Fondo</span>
+  </header>
+
+  <!-- Selección del Modo de Diagnóstico -->
+  <section class="max-w-7xl mx-auto mb-6 grid grid-cols-1 md:grid-cols-3 gap-4">
+    <label class="cursor-pointer bg-slate-900 border border-blue-500/50 p-3 rounded-xl flex items-center justify-between hover:bg-slate-850 transition">
+      <div class="flex items-center gap-3">
+        <input type="radio" name="analysisMode" value="express" checked class="text-blue-600 focus:ring-blue-500">
+        <div>
+          <p class="text-sm font-semibold text-blue-400">Análisis Express</p>
+          <p class="text-[11px] text-slate-400">2 Capturas: Frontal + Perfil</p>
+        </div>
+      </div>
+      <span class="text-[10px] bg-blue-500/10 text-blue-400 px-2 py-0.5 rounded border border-blue-500/20 font-bold">Activo</span>
+    </label>
+
+    <label class="cursor-pointer bg-slate-900 border border-slate-800 p-3 rounded-xl flex items-center justify-between hover:bg-slate-850 transition opacity-80">
+      <div class="flex items-center gap-3">
+        <input type="radio" name="analysisMode" value="full" class="text-blue-600 focus:ring-blue-500">
+        <div>
+          <p class="text-sm font-semibold text-slate-200">Análisis Completo</p>
+          <p class="text-[11px] text-slate-400">6 Capturas Multiángulo</p>
+        </div>
+      </div>
+    </label>
+
+    <div class="bg-slate-900/50 border border-slate-800/50 p-3 rounded-xl flex items-center justify-between opacity-50 cursor-not-allowed">
+      <div class="flex items-center gap-3">
+        <input type="radio" name="analysisMode" value="body" disabled class="text-slate-600">
+        <div>
+          <p class="text-sm font-semibold text-slate-400">Análisis Corporal</p>
+          <p class="text-[11px] text-slate-500">Morfología Corporal</p>
+        </div>
+      </div>
+      <span class="text-[10px] bg-amber-500/10 text-amber-400 px-2 py-0.5 rounded border border-amber-500/20">Próximamente</span>
     </div>
-    <div id="status-pose" class="flex items-center gap-2 p-1.5 rounded bg-slate-900 border border-slate-800">
-      <span class="w-2.5 h-2.5 rounded-full bg-slate-600" id="dot-pose"></span>
-      <span class="text-slate-300">Inclinación Cabeza</span>
-    </div>
-    <div id="status-quality" class="flex items-center gap-2 p-1.5 rounded bg-slate-900 border border-slate-800">
-      <span class="w-2.5 h-2.5 rounded-full bg-slate-600" id="dot-quality"></span>
-      <span class="text-slate-300">Calidad Foto</span>
-    </div>
-  </div>
-</section>
+  </section>
+
+  <!-- Panel Principal de Diagnóstico -->
+  <main class="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-6">
+    
+    <!-- Visor de Cámara con Proporción Nativa Antideformación -->
+    <section class="lg:col-span-2 bg-slate-900 rounded-xl p-4 border border-slate-800 flex flex-col items-center justify-center relative">
+      <video id="webcam" class="hidden" autoplay playsinline muted></video>
+      
+      <div class="canvas-container shadow-2xl border border-slate-800 w-full overflow-hidden rounded-lg bg-black">
+        <canvas id="output_canvas" class="w-full h-auto block"></canvas>
+      </div>
+
+      <!-- Botón de Captura Fotográfica -->
+      <div class="mt-4 flex justify-center items-center w-full gap-4">
+        <button id="btnCapture" class="bg-emerald-600 hover:bg-emerald-500 text-white px-6 py-2.5 rounded-xl font-bold text-sm shadow-lg shadow-emerald-900/30 transition-all flex items-center gap-2">
+          <span>📸 Capturar Foto (<span id="captureStepText">Foto 1: Frontal</span>)</span>
+        </button>
+      </div>
+
+      <!-- Semáforo de Calidad Clínico -->
+      <div class="w-full mt-4 bg-slate-950 p-3 rounded-lg border border-slate-800 grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+        <div id="status-light" class="flex items-center gap-2 p-1.5 rounded bg-slate-900 border border-slate-800">
+          <span class="w-2.5 h-2.5 rounded-full bg-slate-600" id="dot-light"></span>
+          <span class="text-slate-300">Luz / Iluminación</span>
+        </div>
+        <div id="status-contrast" class="flex items-center gap-2 p-1.5 rounded bg-slate-900 border border-slate-800">
+          <span class="w-2.5 h-2.5 rounded-full bg-slate-600" id="dot-contrast"></span>
+          <span class="text-slate-300">Contraste Fondo</span>
+        </div>
+        <div id="status-pose" class="flex items-center gap-2 p-1.5 rounded bg-slate-900 border border-slate-800">
+          <span class="w-2.5 h-2.5 rounded-full bg-slate-600" id="dot-pose"></span>
+          <span class="text-slate-300">Inclinación Cabeza</span>
+        </div>
+        <div id="status-quality" class="flex items-center gap-2 p-1.5 rounded bg-slate-900 border border-slate-800">
+          <span class="w-2.5 h-2.5 rounded-full bg-slate-600" id="dot-quality"></span>
+          <span class="text-slate-300">Calidad Foto</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Panel Lateral de Resultados -->
+    <aside class="space-y-6">
+      <div class="bg-slate-900 rounded-xl p-4 border border-slate-800">
+        <h2 class="text-md font-semibold text-blue-300 mb-3 border-b border-slate-800 pb-2">Colorimetría Extendida</h2>
+        <div id="colorimetry-data" class="text-xs space-y-2 text-slate-300">
+          <p class="text-slate-500 italic">Iniciando lectura fotométrica...</p>
+        </div>
+      </div>
+
+      <div class="bg-slate-900 rounded-xl p-4 border border-slate-800">
+        <h2 class="text-md font-semibold text-amber-300 mb-3 border-b border-slate-800 pb-2">Taxonomía & Biometría</h2>
+        <div id="traits-list" class="text-xs space-y-1 max-h-[350px] overflow-y-auto pr-1">
+          <p class="text-slate-500 italic">Esperando detección de rostro...</p>
+        </div>
+      </div>
+    </aside>
+  </main>
+
+  <!-- MÓDULOS DEL SISTEMA VISAGELAB -->
+  <script src="facialtaxonomy.js"></script>
+  <script src="colorimetry.js"></script>
+  <script src="biometrics.js"></script>
+  <script src="facial-traits.js"></script>
+  <script src="pdfgenerator.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
