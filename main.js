@@ -1,4 +1,4 @@
-// main.js - Coordinador Principal, Captura Fotográfica y Controles de Sujeto
+// main.js - Coordinación de Capturas Multiángulo, Bloqueo de PDF y Gestión de Cámaras
 
 let currentStream = null;
 const videoElement = document.getElementById('webcam');
@@ -6,10 +6,27 @@ const canvasElement = document.getElementById('output_canvas');
 const canvasCtx = canvasElement.getContext('2d', { willReadFrequently: true });
 const cameraSelect = document.getElementById('cameraSelect');
 
-let capturedPhotos = [];
-let captureStep = 0; // 0: Frontal, 1: Perfil
+// Estado Global de Capturas
+window.capturedPhotos = []; 
+let currentPhotoIndex = 0;
 
-// Configuración MediaPipe FaceMesh
+// Configuración de ángulos según el modo de análisis
+const CAPTURE_MODES = {
+  express: [
+    { id: 'frontal', name: 'Foto 1: Frontal' },
+    { id: 'perfil', name: 'Foto 2: Perfil' }
+  ],
+  full: [
+    { id: 'frontal', name: 'Foto 1: Frontal' },
+    { id: '34_derecho', name: 'Foto 2: 3/4 Derecho' },
+    { id: 'perfil_derecho', name: 'Foto 3: Perfil Derecho' },
+    { id: '34_izquierdo', name: 'Foto 4: 3/4 Izquierdo' },
+    { id: 'perfil_izquierdo', name: 'Foto 5: Perfil Izquierdo' },
+    { id: 'picado', name: 'Foto 6: Ángulo Dinámico / Zenith' }
+  ]
+};
+
+// 1. CONFIGURACIÓN DE MEDIAPIPE FACE MESH
 const faceMesh = new FaceMesh({
   locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`
 });
@@ -21,7 +38,7 @@ faceMesh.setOptions({
   minTrackingConfidence: 0.6
 });
 
-// 1. DETECCIÓN MULTICÁMARA
+// 2. DETECCIÓN Y SELECCIÓN DE CÁMARAS
 async function getConnectedCameras() {
   try {
     const devices = await navigator.mediaDevices.enumerateDevices();
@@ -39,11 +56,10 @@ async function getConnectedCameras() {
       startCameraStream(videoDevices[0].deviceId);
     }
   } catch (err) {
-    console.error("Error enumerando cámaras:", err);
+    console.error("Error al enumerar cámaras:", err);
   }
 }
 
-// 2. INICIAR STREAM DE CÁMARA SELECCIONADA
 async function startCameraStream(deviceId) {
   if (currentStream) {
     currentStream.getTracks().forEach(track => track.stop());
@@ -69,7 +85,7 @@ cameraSelect.addEventListener('change', (e) => {
   if (e.target.value) startCameraStream(e.target.value);
 });
 
-// 3. PROCESAMIENTO FRAME A FRAME
+// 3. PROCESAMIENTO CONTINUO DE VIDEO
 async function processVideoFrame() {
   if (videoElement.paused || videoElement.ended) return;
 
@@ -80,7 +96,7 @@ async function processVideoFrame() {
   requestAnimationFrame(processVideoFrame);
 }
 
-// 4. EJECTUTAR MÓDULOS CON SEXO Y EDAD
+// 4. BUCLE DE DIAGNÓSTICO Y RASTREO FACIAL
 faceMesh.onResults((results) => {
   canvasCtx.save();
   canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
@@ -88,18 +104,14 @@ faceMesh.onResults((results) => {
 
   if (results.multiFaceLandmarks && results.multiFaceLandmarks.length > 0) {
     const landmarks = results.multiFaceLandmarks[0];
-
-    // Obtener configuración del sujeto
     const selectedGender = document.querySelector('input[name="genderSelect"]:checked')?.value || 'male';
 
-    // Ejecutar Módulos pasándole la variante por sexo
     if (typeof BiometricsModule !== 'undefined') BiometricsModule.init(results, canvasCtx);
     if (typeof ColorimetryModule !== 'undefined') ColorimetryModule.analyze(canvasElement, landmarks);
     if (typeof FacialTraitsModule !== 'undefined') {
       FacialTraitsModule.analyze(landmarks, canvasElement.width, canvasElement.height, selectedGender);
     }
 
-    // Evaluar Semáforo de Calidad
     evaluateQualitySemaforo(canvasElement, canvasCtx, landmarks);
   }
   canvasCtx.restore();
@@ -141,23 +153,66 @@ function updateStatusDot(elementId, isOk) {
     : "w-2.5 h-2.5 rounded-full bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.8)]";
 }
 
-// 6. LÓGICA DEL BOTÓN DE CAPTURA
-const btnCapture = document.getElementById('btnCapture');
-const captureStepText = document.getElementById('captureStepText');
+// 6. GESTIÓN DE CAPTURAS Y CONTROL DE EXPORTACIÓN
+function getSelectedMode() {
+  return document.querySelector('input[name="analysisMode"]:checked')?.value || 'express';
+}
 
+function updateCaptureUI() {
+  const mode = getSelectedMode();
+  const steps = CAPTURE_MODES[mode];
+  const btnCapture = document.getElementById('btnCapture');
+  const btnExport = document.getElementById('btnExportPDF');
+  const stepText = document.getElementById('captureStepText');
+
+  const totalRequired = steps.length;
+  const currentCount = window.capturedPhotos.length;
+
+  if (currentCount < totalRequired) {
+    if (stepText) stepText.innerText = steps[currentCount].name;
+    if (btnExport) {
+      btnExport.disabled = true;
+      btnExport.classList.add('opacity-50', 'cursor-not-allowed');
+      btnExport.title = `Captura las ${totalRequired} fotos requeridas para habilitar la exportación (${currentCount}/${totalRequired}).`;
+    }
+    if (btnCapture) btnCapture.classList.remove('hidden');
+  } else {
+    if (stepText) stepText.innerText = "¡Capturas Completadas!";
+    if (btnExport) {
+      btnExport.disabled = false;
+      btnExport.classList.remove('opacity-50', 'cursor-not-allowed');
+      btnExport.title = "Exportar Expediente PDF Completo";
+    }
+  }
+}
+
+// Reiniciar fotos al cambiar de modo
+document.querySelectorAll('input[name="analysisMode"]').forEach(radio => {
+  radio.addEventListener('change', () => {
+    window.capturedPhotos = [];
+    currentPhotoIndex = 0;
+    updateCaptureUI();
+  });
+});
+
+// Evento del botón de captura
+const btnCapture = document.getElementById('btnCapture');
 if (btnCapture) {
   btnCapture.addEventListener('click', () => {
-    const currentSnapshot = canvasElement.toDataURL('image/jpeg', 0.9);
-    capturedPhotos.push(currentSnapshot);
+    const mode = getSelectedMode();
+    const steps = CAPTURE_MODES[mode];
 
-    captureStep++;
-    if (captureStep === 1) {
-      captureStepText.innerText = "Perfil";
-      alert("✅ Foto Frontal capturada exitosamente. Ahora gira el rostro para la toma de Perfil.");
-    } else {
-      captureStepText.innerText = "Frontal";
-      captureStep = 0;
-      alert("✅ Capturas completadas. Ya puedes exportar el Expediente PDF completo.");
+    if (window.capturedPhotos.length < steps.length) {
+      const photoData = canvasElement.toDataURL('image/jpeg', 0.9);
+      const angleInfo = steps[window.capturedPhotos.length];
+
+      window.capturedPhotos.push({
+        label: angleInfo.name,
+        id: angleInfo.id,
+        image: photoData
+      });
+
+      updateCaptureUI();
     }
   });
 }
@@ -165,4 +220,5 @@ if (btnCapture) {
 // Inicialización
 document.addEventListener('DOMContentLoaded', () => {
   getConnectedCameras();
+  updateCaptureUI();
 });
