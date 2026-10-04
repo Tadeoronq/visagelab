@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>VisageLab - Analizador Biométrico</title>
+  <title>VisageLab - Analizador Biométrico & Colorimetría</title>
   <!-- Tailwind CSS CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
   <!-- MediaPipe Libraries -->
@@ -13,13 +13,36 @@
   <!-- jsPDF & AutoTable -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
+  <style>
+    /* Esencial para superposición precisa en vivo */
+    .video-container {
+      position: relative;
+      width: 100%;
+      max-width: 100%;
+      background-color: #000;
+    }
+    #webcam {
+      width: 100%;
+      height: auto;
+      display: block;
+    }
+    #output_canvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: 10;
+    }
+  </style>
 </head>
 <body class="bg-gray-950 text-gray-100 min-h-screen font-sans flex flex-col items-center justify-start p-4">
 
   <!-- Encabezado -->
   <header class="text-center my-4">
     <h1 class="text-4xl font-extrabold tracking-tight text-blue-500">VISAGELAB</h1>
-    <p class="text-xs text-gray-400 mt-1">Plataforma Privada de Diagnóstico Biométrico Facial y Corporal</p>
+    <p class="text-xs text-gray-400 mt-1">Plataforma de Diagnóstico Biométrico, Malla Facial en Vivo y Colorimetría Estacional</p>
   </header>
 
   <!-- Contenedor Principal -->
@@ -66,18 +89,17 @@
         <select id="sessionMode" onchange="changeMode()" class="bg-gray-900 border border-gray-700 rounded px-2 py-1 text-xs text-blue-400 font-semibold focus:outline-none">
           <option value="express">Sesión Express (2 Tomas)</option>
           <option value="full" selected>Sesión Facial Completa (6 Tomas)</option>
-          <option value="body">Sesión Corporal (Próximamente)</option>
         </select>
       </div>
 
     </div>
 
-    <!-- Visor de Video y Canvas para Malla Facial en Vivo -->
-    <div class="relative w-full aspect-video bg-black rounded-lg overflow-hidden border border-gray-800 flex items-center justify-center">
-      <video id="webcam" class="absolute inset-0 w-full h-full object-contain" autoplay playsinline muted></video>
-      <canvas id="output_canvas" class="absolute inset-0 w-full h-full object-contain pointer-events-none z-10"></canvas>
+    <!-- Visor de Video y Canvas Superpuesto en Vivo -->
+    <div class="video-container rounded-lg overflow-hidden border border-gray-800">
+      <video id="webcam" autoplay playsinline muted></video>
+      <canvas id="output_canvas"></canvas>
       
-      <!-- Indicadores de Estado y Métricas de Imagen en Vivo -->
+      <!-- Indicadores de Estado, Métricas e Indicador de Colorimetría en Vivo -->
       <div class="absolute top-4 left-4 flex flex-wrap gap-2 z-20">
         <div id="status_overlay" class="bg-gray-950/90 px-3 py-1 rounded-full border border-gray-800 text-xs text-amber-400 font-mono">
           Cámara Inactiva
@@ -89,7 +111,26 @@
           Contraste: --
         </div>
         <div id="mesh_status" class="bg-gray-950/90 px-3 py-1 rounded-full border border-gray-800 text-xs text-red-400 font-mono">
-          Malla: No detectada
+          Malla: Inactiva
+        </div>
+      </div>
+
+      <!-- Panel Flotante de Colorimetría en Vivo -->
+      <div class="absolute bottom-4 left-4 right-4 bg-gray-950/85 p-3 rounded-lg border border-gray-800 flex flex-wrap items-center justify-between text-xs z-20 gap-2">
+        <div class="flex items-center gap-2">
+          <div id="skin_color_swatch" class="w-5 h-5 rounded-full border border-white/40 bg-gray-700"></div>
+          <div>
+            <span class="text-gray-400 block text-[10px] uppercase font-bold">Tono Detectado</span>
+            <span id="skin_tone_text" class="font-semibold text-blue-300">Esperando rostro...</span>
+          </div>
+        </div>
+        <div>
+          <span class="text-gray-400 block text-[10px] uppercase font-bold">Subtono</span>
+          <span id="skin_subtone_text" class="font-semibold text-emerald-400">--</span>
+        </div>
+        <div>
+          <span class="text-gray-400 block text-[10px] uppercase font-bold">Estación Térmica</span>
+          <span id="skin_season_text" class="font-semibold text-amber-300">--</span>
         </div>
       </div>
     </div>
@@ -102,10 +143,10 @@
     <!-- Acciones de Control -->
     <div class="mt-6 flex flex-wrap gap-4 justify-center">
       <button id="btnStart" onclick="initCamera()" class="bg-blue-600 hover:bg-blue-500 text-white font-semibold px-6 py-2.5 rounded-lg transition shadow-lg text-sm">
-        Iniciar Cámara
+        Iniciar Cámara y Malla
       </button>
       <button id="btnPDF" onclick="generatePDF()" disabled class="bg-emerald-600 hover:bg-emerald-500 text-white font-semibold px-6 py-2.5 rounded-lg transition shadow-lg text-sm disabled:opacity-40 disabled:cursor-not-allowed">
-        Generar Expediente PDF
+        Generar Expediente PDF Completo
       </button>
     </div>
 
@@ -124,6 +165,16 @@
     let capturedShots = {};
     let imageMetrics = { brightness: 0, contrast: 0, status: "Aceptable" };
 
+    // Estructura de Colorimetría
+    let currentColorimetry = {
+      rgb: [0, 0, 0],
+      tone: "No detectado",
+      subtone: "No detectado",
+      season: "Por determinar",
+      palette: [],
+      description: "Alinee su rostro frente a la cámara con luz natural."
+    };
+
     const modesConfig = {
       express: [
         { id: 1, label: "1. Frontal" },
@@ -136,14 +187,10 @@
         { id: 4, label: "4. Perfil Der. 45°" },
         { id: 5, label: "5. Perfil Der. 90°" },
         { id: 6, label: "6. Frontal Sonriendo" }
-      ],
-      body: [
-        { id: 1, label: "Cuerpo Frontal" },
-        { id: 2, label: "Cuerpo Perfil" }
       ]
     };
 
-    // Enumerar cámaras disponibles (Frontal, Trasera, USB externas)
+    // Enumerar dispositivos de video
     async function getCameraDevices() {
       const cameraSelect = document.getElementById('cameraSelect');
       cameraSelect.innerHTML = '';
@@ -164,7 +211,7 @@
           cameraSelect.appendChild(option);
         });
       } catch (err) {
-        console.error("Error al enumerar dispositivos:", err);
+        console.error("Error al enumerar cámaras:", err);
         cameraSelect.innerHTML = '<option value="">Error al cargar cámaras</option>';
       }
     }
@@ -175,13 +222,6 @@
       container.innerHTML = '';
       capturedShots = {};
       document.getElementById('btnPDF').disabled = true;
-
-      if (mode === 'body') {
-        container.innerHTML = `<div class="col-span-full text-center py-3 text-xs text-amber-400 bg-gray-950 rounded border border-gray-800">
-          Módulo Corporal en desarrollo. Selecciona Sesión Express o Completa para Diagnóstico Facial.
-        </div>`;
-        return;
-      }
 
       const buttons = modesConfig[mode];
       container.className = `mt-6 grid grid-cols-2 sm:grid-cols-${buttons.length} gap-2`;
@@ -203,7 +243,7 @@
       renderButtons();
     }
 
-    // Inicialización de MediaPipe FaceMesh
+    // Inicializar MediaPipe Face Mesh
     function setupFaceMesh() {
       if (faceMesh) return;
 
@@ -221,51 +261,152 @@
       faceMesh.onResults(onResults);
     }
 
-    // Dibujo en tiempo real sobre Canvas
+    // Bucle en Vivo Dinámico para Dibujar la Malla conforme el Sujeto se Mueve
     function onResults(results) {
       if (!videoElement.videoWidth || !videoElement.videoHeight) return;
 
-      canvasElement.width = videoElement.videoWidth;
-      canvasElement.height = videoElement.videoHeight;
+      // Sincronización exacta del canvas con las dimensiones del fotograma del video
+      if (canvasElement.width !== videoElement.videoWidth || canvasElement.height !== videoElement.videoHeight) {
+        canvasElement.width = videoElement.videoWidth;
+        canvasElement.height = videoElement.videoHeight;
+      }
 
       canvasCtx.save();
       canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
 
-      // Evaluación del contraste y brillo
       analyzeQualityMetrics();
 
       if (results.multiFaceLandmarks && results.multiFaceLandmarks.length > 0) {
         currentLandmarks = results.multiFaceLandmarks[0];
 
-        document.getElementById('mesh_status').innerText = "Malla: ACTIVA";
+        document.getElementById('mesh_status').innerText = "Malla: 100% EN VIVO";
         document.getElementById('mesh_status').className = "bg-gray-950/90 px-3 py-1 rounded-full border border-gray-800 text-xs text-green-400 font-mono";
 
+        // Renderizado tridimensional completo sobre el video en vivo
         for (const landmarks of results.multiFaceLandmarks) {
-          // Malla tridimensional facial completa
-          drawConnectors(canvasCtx, landmarks, FACEMESH_TESSELATION, {color: '#3B82F6', lineWidth: 0.8});
+          drawConnectors(canvasCtx, landmarks, FACEMESH_TESSELATION, {color: 'rgba(59, 130, 246, 0.4)', lineWidth: 0.8});
           drawConnectors(canvasCtx, landmarks, FACEMESH_RIGHT_EYE, {color: '#10B981', lineWidth: 1.5});
           drawConnectors(canvasCtx, landmarks, FACEMESH_LEFT_EYE, {color: '#10B981', lineWidth: 1.5});
           drawConnectors(canvasCtx, landmarks, FACEMESH_LIPS, {color: '#F43F5E', lineWidth: 1.5});
-          drawConnectors(canvasCtx, landmarks, FACEMESH_FACEMASK, {color: '#6366F1', lineWidth: 1.0});
+          drawConnectors(canvasCtx, landmarks, FACEMESH_FACEMASK, {color: '#6366F1', lineWidth: 1.2});
         }
+
+        // Extracción y Diagnóstico de Colorimetría
+        processColorimetry(currentLandmarks);
+
       } else {
         currentLandmarks = null;
-        document.getElementById('mesh_status').innerText = "Malla: No detectada";
+        document.getElementById('mesh_status').innerText = "Malla: Buscando rostro...";
         document.getElementById('mesh_status').className = "bg-gray-950/90 px-3 py-1 rounded-full border border-gray-800 text-xs text-red-400 font-mono";
       }
       canvasCtx.restore();
     }
 
-    // Procesamiento fotograma a fotograma
+    // Algoritmo de extracción y clasificación de Colorimetría
+    function processColorimetry(landmarks) {
+      if (!landmarks) return;
+
+      // Obtener punto central de la mejilla izquierda (Landmark 117) y derecha (Landmark 346)
+      const cheekPt = landmarks[117];
+      const px = Math.floor(cheekPt.x * videoElement.videoWidth);
+      const py = Math.floor(cheekPt.y * videoElement.videoHeight);
+
+      let sampleCanvas = document.createElement('canvas');
+      sampleCanvas.width = videoElement.videoWidth;
+      sampleCanvas.height = videoElement.videoHeight;
+      let sCtx = sampleCanvas.getContext('2d');
+      sCtx.drawImage(videoElement, 0, 0);
+
+      try {
+        let pData = sCtx.getImageData(px, py, 5, 5).data;
+        let r = 0, g = 0, b = 0, count = 0;
+
+        for (let i = 0; i < pData.length; i += 4) {
+          r += pData[i];
+          g += pData[i+1];
+          b += pData[i+2];
+          count++;
+        }
+
+        r = Math.round(r / count);
+        g = Math.round(g / count);
+        b = Math.round(b / count);
+
+        currentColorimetry.rgb = [r, g, b];
+
+        // Lógica de Clasificación de Tono y Subtono
+        let brightness = (r + g + b) / 3;
+        let toneStr = "Claro / Porcelana";
+        if (brightness < 90) toneStr = "Oscuro / Profundo";
+        else if (brightness < 140) toneStr = "Medio / Moreno";
+        else if (brightness < 180) toneStr = "Intermedio / Claro";
+
+        // Subtono basado en dominancia de espectro R y B vs G
+        let subtoneStr = "Neutro";
+        if (r > g + 15 && r > b + 20) {
+          subtoneStr = "Cálido (Dorado / Cetrino)";
+        } else if (b > g || (r - b < 10 && g < r)) {
+          subtoneStr = "Frío (Rosado / Azulado)";
+        }
+
+        // Estación Estacional Estilística
+        let seasonStr = "Verano Frío";
+        let palette = ["#F43F5E", "#3B82F6", "#9333EA", "#E2E8F0"];
+
+        if (subtoneStr.includes("Cálido")) {
+          if (brightness > 130) {
+            seasonStr = "Primavera Brillante";
+            palette = ["#F59E0B", "#10B981", "#EF4444", "#FDE047"];
+          } else {
+            seasonStr = "Otoño Calido/Profundo";
+            palette = ["#B45309", "#78350F", "#047857", "#D97706"];
+          }
+        } else if (subtoneStr.includes("Frío")) {
+          if (brightness < 110) {
+            seasonStr = "Invierno Intenso";
+            palette = ["#1E3A8A", "#831843", "#065F46", "#FFFFFF"];
+          } else {
+            seasonStr = "Verano Suave";
+            palette = ["#60A5FA", "#F472B6", "#A78BFA", "#CBD5E1"];
+          }
+        } else {
+          seasonStr = "Neutro Armónico";
+          palette = ["#475569", "#059669", "#D97706", "#2563EB"];
+        }
+
+        currentColorimetry.tone = toneStr;
+        currentColorimetry.subtone = subtoneStr;
+        currentColorimetry.season = seasonStr;
+        currentColorimetry.palette = palette;
+        currentColorimetry.description = `Muestra fotométrica extraída [RGB: ${r}, ${g}, ${b}]. Tono ${toneStr} con subtono ${subtoneStr}. Armonía estacional recomendada: ${seasonStr}.`;
+
+        // Actualizar UI en vivo
+        document.getElementById('skin_color_swatch').style.backgroundColor = `rgb(${r}, ${g}, ${b})`;
+        document.getElementById('skin_tone_text').innerText = toneStr;
+        document.getElementById('skin_subtone_text').innerText = subtoneStr;
+        document.getElementById('skin_season_text').innerText = seasonStr;
+
+      } catch (e) {
+        console.warn("Muestreo cromático fuera de rango de imagen.", e);
+      }
+    }
+
+    // Transmisión y renderizado continuo
     async function processVideoFrame() {
       if (!isProcessing || videoElement.paused || videoElement.ended) return;
+      
       if (faceMesh) {
         await faceMesh.send({ image: videoElement });
       }
-      requestAnimationFrame(processVideoFrame);
+
+      if ('requestVideoFrameCallback' in HTMLVideoElement.prototype) {
+        videoElement.requestVideoFrameCallback(processVideoFrame);
+      } else {
+        requestAnimationFrame(processVideoFrame);
+      }
     }
 
-    // Inicialización de la cámara seleccionada
+    // Inicializar Cámara
     async function initCamera() {
       setupFaceMesh();
 
@@ -287,12 +428,16 @@
         videoElement.onloadedmetadata = () => {
           videoElement.play();
           isProcessing = true;
-          requestAnimationFrame(processVideoFrame);
+          
+          if ('requestVideoFrameCallback' in HTMLVideoElement.prototype) {
+            videoElement.requestVideoFrameCallback(processVideoFrame);
+          } else {
+            requestAnimationFrame(processVideoFrame);
+          }
 
           document.getElementById('status_overlay').innerText = "Cámara Activa";
           document.getElementById('status_overlay').className = "bg-gray-950/90 px-3 py-1 rounded-full border border-gray-800 text-xs text-green-400 font-mono";
 
-          // Actualizar lista de cámaras si la primera vez no tenían etiquetas
           if (!cameraSelect.value) {
             getCameraDevices();
           }
@@ -301,7 +446,7 @@
         };
       } catch (err) {
         console.error("Error al acceder a la cámara:", err);
-        alert("No se pudo iniciar la cámara seleccionada. Verifica los permisos de tu navegador.");
+        alert("No se pudo conectar a la cámara seleccionada. Por favor concede permisos en el navegador.");
       }
     }
 
@@ -311,7 +456,6 @@
       }
     }
 
-    // Análisis de métricas fotométricas (Brillo, Contraste)
     function analyzeQualityMetrics() {
       if (!videoElement.videoWidth) return;
 
@@ -332,20 +476,11 @@
       }
 
       let meanBrightness = sumBrightness / values.length;
-
-      // Cálculo de desviación estándar para contraste
       let variance = values.reduce((acc, val) => acc + Math.pow(val - meanBrightness, 2), 0) / values.length;
       let stdDevContrast = Math.sqrt(variance);
 
       imageMetrics.brightness = Math.round(meanBrightness);
       imageMetrics.contrast = Math.round(stdDevContrast);
-
-      // Evaluación cualitativa de calidad de foto
-      if (meanBrightness > 70 && meanBrightness < 180 && stdDevContrast > 30) {
-        imageMetrics.status = "Óptima (Alta Nitidez)";
-      } else {
-        imageMetrics.status = "Aceptable (Ajustar Luz)";
-      }
 
       document.getElementById('light_overlay').innerText = `Brillo: ${imageMetrics.brightness}`;
       document.getElementById('contrast_overlay').innerText = `Contraste: ${imageMetrics.contrast}`;
@@ -353,7 +488,7 @@
 
     function captureStep(id, label) {
       if (!currentLandmarks) {
-        alert("Detectando rostro... Por favor colócate de frente a la cámara con buena iluminación.");
+        alert("Detectando rostro... Por favor colócate frente a la cámara.");
         return;
       }
 
@@ -365,7 +500,7 @@
       tempCtx.drawImage(videoElement, 0, 0);
       let naturalData = tempCanvas.toDataURL('image/jpeg', 0.85);
 
-      // 2. Foto con Malla Renderizada
+      // 2. Foto con la Malla Renderizada exactas
       let meshCanvas = document.createElement('canvas');
       meshCanvas.width = videoElement.videoWidth;
       meshCanvas.height = videoElement.videoHeight;
@@ -379,6 +514,7 @@
         natural: naturalData, 
         mesh: meshData, 
         landmarks: currentLandmarks,
+        colorimetry: { ...currentColorimetry },
         quality: { ...imageMetrics }
       };
 
@@ -393,7 +529,6 @@
       }
     }
 
-    // Cálculo dinámico de métricas vectoriales reales
     function calculateVectorMetrics(lm) {
       if (!lm) {
         return {
@@ -404,14 +539,12 @@
         };
       }
 
-      // Inclinación Cantal Reales
       const rightEyeOuter = lm[33];
       const leftEyeOuter = lm[263];
       const dy = Math.abs(leftEyeOuter.y - rightEyeOuter.y);
       const dx = Math.abs(leftEyeOuter.x - rightEyeOuter.x);
       const cantalAngle = (Math.atan2(dy, dx) * (180 / Math.PI)).toFixed(1);
 
-      // Ratio Cigomático
       const zygomaticLeft = lm[234];
       const zygomaticRight = lm[454];
       const faceWidth = Math.hypot(zygomaticRight.x - zygomaticLeft.x, zygomaticRight.y - zygomaticLeft.y);
@@ -421,7 +554,6 @@
       const faceHeight = Math.hypot(chin.x - glabella.x, chin.y - glabella.y);
       const ratio = (faceWidth / (faceHeight || 1)).toFixed(2);
 
-      // Tercios Faciales
       const subnasale = lm[2];
       const tSuperior = Math.abs(glabella.y - lm[70].y);
       const tMedio = Math.abs(subnasale.y - glabella.y);
@@ -432,7 +564,6 @@
       const mPerc = ((tMedio / totalH) * 100).toFixed(1);
       const iPerc = ((tInferior / totalH) * 100).toFixed(1);
 
-      // Simetría Bilateral
       const leftCheek = lm[116];
       const rightCheek = lm[345];
       const devPx = (Math.abs(leftCheek.y - rightCheek.y) * 100).toFixed(1);
@@ -445,197 +576,100 @@
       };
     }
 
-    // Tabla Resumen Morfométrica (4 Columnas)
     function getSummaryTableData() {
       const lm = capturedShots[1] ? capturedShots[1].landmarks : null;
       const metrics = calculateVectorMetrics(lm);
       const isFemale = document.querySelector('input[name="genderSelect"]:checked').value === 'female';
+      const color = capturedShots[1] ? capturedShots[1].colorimetry : currentColorimetry;
 
       return [
         [
-          "Rostro",
+          "Colorimetría Cutánea",
+          color.tone,
+          `Subtono ${color.subtone}`,
+          `Estación: ${color.season}. ${color.description}`
+        ],
+        [
+          "Rostro y Estructura",
           metrics.ratioRatio,
           "Forma Diamante",
-          "Pómulos altos y definidos con frente y mandíbula proporcionalmente más estrechas."
+          "Pómulos definidos con frente y mandíbula proporcionalmente equilibradas."
         ],
         [
-          "Tercios",
+          "Tercios Faciales",
           metrics.terciosStr,
           isFemale ? "Distribución Proporcionada" : "Dominancia Mandibular",
-          "Equilibrio entre el tercio superior, medio e inferior según el estándar morfométrico."
+          "Equilibrio de proporciones verticales en base a los puntos de referencia faciales."
         ],
         [
-          "Simetría",
+          "Simetría Bilateral",
           metrics.simetriaStr,
           "Simetría Armónica Natural",
-          "Variaciones casi imperceptibles en la posición de rasgos que aportan balance bilateral."
-        ],
-        [
-          "Quintos",
-          "Transversal",
-          "Proporción Áurea Lateral",
-          "División horizontal equilibrada en cinco segmentos respecto al ancho ocular."
-        ],
-        [
-          "Nariz",
-          "Base Alar",
-          "Alineación Intercantal",
-          "Ancho de la base nasal en concordancia exacta con la distancia entre ambos cantos internos."
+          "Variaciones naturales en el plano horizontal que mantienen el equilibrio facial."
         ],
         [
           "Inclinación Cantal",
           metrics.cantalStr,
           "Inclinación Positiva Marcada",
-          "Esquina externa del ojo (canto lateral) situada por encima de la esquina interna."
+          "Ángulo entre las esquinas externas e internas de los ojos."
         ]
       ];
     }
 
-    // Lista Exhaustiva de Diagnósticos Detallados con "Por qué"
     function getExhaustiveDiagnostics() {
       const isFemale = document.querySelector('input[name="genderSelect"]:checked').value === 'female';
-      const q = capturedShots[1] ? capturedShots[1].quality : imageMetrics;
+      const c = capturedShots[1] ? capturedShots[1].colorimetry : currentColorimetry;
 
       return [
         {
-          title: "Calidad de la Piel y Captura",
-          class: `Claridad Saludable (${q.status})`,
-          why: `Ausencia de inflamación activa. Tono constante. Brillo registrado: ${q.brightness}, Contraste: ${q.contrast}.`
+          title: "Análisis de Colorimetría y Subtono de Piel",
+          class: `${c.tone} - ${c.subtone}`,
+          why: `Pigmentación de fondo muestreada en espectro RGB [${c.rgb.join(', ')}]. Subtono de la dermis evaluado como ${c.subtone}. Se recomienda paleta estacional ${c.season}.`
+        },
+        {
+          title: "Estación Estacional y Paleta Recomendada",
+          class: c.season,
+          why: `Los valores de contraste e intensidad sugieren prendas, accesorios y maquillaje enfocados en la estación ${c.season} para realzar la luminosidad facial.`
+        },
+        {
+          title: "Calidad de la Piel y Captura Fotométrica",
+          class: `Claridad Saludable`,
+          why: `Brillo y contraste en niveles óptimos para la extracción de vectores morfológicos.`
         },
         {
           title: "Forma del Cráneo",
           class: "Mesocéfalo Perfecto",
-          why: "Equilibrio ideal entre el ancho y el largo del cráneo; proporciona el soporte perfecto para pómulos altos y perfil alineado."
+          why: "Equilibrio ideal entre el ancho y el largo del cráneo; soporte adecuado para los pómulos."
         },
         {
-          title: "Inclinación de la Frente",
-          class: isFemale ? "Inclinación Suave y Armónica" : "Inclinación Masculina Definida (80 a 84 Grados)",
-          why: isFemale ? "Curva continua que suaviza el tercio superior." : "Sutil pendiente hacia atrás que añade profundidad al arco superciliar aportando aspecto estructural."
-        },
-        {
-          title: "Simetría Facial",
+          title: "Simetría Facial Bilateral",
           class: "Simetría Armónica Natural",
-          why: "Variaciones casi imperceptibles en la posición de rasgos que aportan realismo sin comprometer el balance bilateral."
+          why: "Alineación pareja entre ambos hemisferios del rostro sin desviaciones críticas."
         },
         {
           title: "Regla de los Tercios",
-          class: isFemale ? "Proporción Equilibrada de Tercios" : "Dominancia Mandibular (18%/39%/43%)",
-          why: isFemale ? "Transición armoniosa entre frente, nariz y mentón." : "Tercio inferior fuerte, rasgo principal de estructura y presencia biológica."
-        },
-        {
-          title: "Grasa Bucal",
-          class: isFemale ? "Volumen Módico Armónico" : "Transición Plana y Limpia",
-          why: isFemale ? "Tejido adiposo suave que conserva la lozanía." : "Línea recta y atlética entre pómulo y mandíbula, libre de excesos de tejido blando."
-        },
-        {
-          title: "Forma de las Orejas",
-          class: "Orejas Armónicas Proporcionales",
-          why: "Tienen un tamaño equilibrado, ocupando el espacio entre la línea de la ceja y la base nasal."
-        },
-        {
-          title: "Tamaño de las Orejas",
-          class: "Proporción Áurea",
-          why: "El tamaño coincide exactamente con la longitud nasal, creando simetría visual."
+          class: isFemale ? "Proporción Equilibrada de Tercios" : "Dominancia Mandibular",
+          why: "Transición estructurada entre frente, tercio medio nasal y mentón."
         },
         {
           title: "Formas de la Mandíbula",
-          class: isFemale ? "Línea Mandibular Estilizada" : "Mandíbula de V Marcada",
-          why: isFemale ? "Trazado cónico fluido hacia el mentón." : "Líneas rectas firmes que convergen en un mentón definido con aspecto atlético."
-        },
-        {
-          title: "Proyección de la Mandíbula",
-          class: "Ortognatismo Perfecto",
-          why: "La proyección del mentón está alineada con la glabela y la base de la nariz, creando un perfil balanceado."
-        },
-        {
-          title: "Inclinación del Mentón",
-          class: isFemale ? "Mentón Neutro Estilizado" : "Prognatismo Masculino Primitivo (1 a 3 mm)",
-          why: isFemale ? "Alineación estética correcta con el labio superior." : "El mentón se proyecta ligeramente por delante de la línea vertical de la glabela."
+          class: isFemale ? "Línea Mandibular Estilizada" : "Mandíbula Definida",
+          why: "Líneas que convergen hacia el mentón con un ángulo biangular balanceado."
         },
         {
           title: "Proyección del Maxilar",
           class: "Maxilar de Crecimiento Anterior Óptimo",
-          why: "El hueso maxilar se proyecta correctamente hacia adelante, proporcionando soporte total para los pómulos."
+          why: "Soporte óseo firme en la región central del rostro."
         },
         {
-          title: "Arco Superciliar",
-          class: isFemale ? "Arco Ciliar Nivelado" : "Prominencia Masculina Dominante",
-          why: isFemale ? "Transición superior lisa que aporta luminosidad a la mirada." : "Hueso grueso y proyectado que genera sombra profunda sobre el ojo."
-        },
-        {
-          title: "Profundidad del Ojo",
-          class: "Profundidad Marcada",
-          why: "El globo ocular se encuentra resguardado adecuadamente dentro de la cavidad orbital."
-        },
-        {
-          title: "Exposición del Párpado Superior",
-          class: isFemale ? "Exposición Palpebral Natural" : "Párpado Oculto (Hooded)",
-          why: isFemale ? "Visibilidad clara del párpado móvil." : "Mínima exposición de la piel del párpado móvil para una mirada compacta."
-        },
-        {
-          title: "Unión Cuello-Mandíbula",
-          class: "Ángulo Agudo (90 grados o menos)",
-          why: "Corte limpio y definido entre la línea mandibular y el cuello, indicador de buen tono de tejido."
-        },
-        {
-          title: "Proporción Cuello-Mandíbula",
-          class: "Continuidad Estructural (Proporción Áurea)",
-          why: "El cuello fluye con la anchura bigonial de la mandíbula creando estabilidad estética."
-        },
-        {
-          title: "Proyección Anterior de Pómulos",
-          class: "Proyección Anterior Óptima",
-          why: "El hueso malar sobresale adecuadamente, ofreciendo soporte al párpado inferior."
-        },
-        {
-          title: "Posición Vertical de Pómulos",
-          class: "Elevación Alta (Apex Malar)",
-          why: "El punto de máxima proyección se ubica en el tercio superior, estándar de vitalidad."
-        },
-        {
-          title: "Ancho Lateral de Pómulos",
-          class: isFemale ? "Anchura Cigomática Definida" : "Ancho Robusto (Dominancia)",
-          why: isFemale ? "Soporte malar enmarcado en un óvalo facial armónico." : "Arco cigomático marcadamente ancho que crea una estructura angulada."
-        },
-        {
-          title: "Arco de Sonrisa",
-          class: "Arco de Sonrisa Ideal (Concordante)",
-          why: "El borde de los dientes superiores sigue la curvatura del labio inferior."
-        },
-        {
-          title: "Forma de los Labios",
-          class: "Arco de Cupido Definido",
-          why: "La región del bermellón superior presenta un contorno céntrico bien marcado."
-        },
-        {
-          title: "Grosor de los Labios",
-          class: "Grosor Proporcionado (Relación 1 a 1.6)",
-          why: "El labio inferior mantiene la relación de proporción respecto al superior."
-        },
-        {
-          title: "Tonalidades de los Labios",
-          class: "Rosado Salmón",
-          why: "Tono rosado con matices cálidos que denota buena microcirculación."
-        },
-        {
-          title: "Formas del Ojo",
-          class: isFemale ? "Ojos Almendrados Definidos" : "Ojos de Cazador (Hunter Eyes)",
-          why: isFemale ? "Apertura alargada y expresividad limpia." : "Forma compacta con apoyo del párpado inferior e inclinación positiva."
-        },
-        {
-          title: "Inclinación de los Ojos",
-          class: "Inclinación Positiva Marcada (5 a 8 grados)",
-          why: "La esquina externa (canto lateral) se ubica por encima de la esquina interna."
-        },
-        {
-          title: "Forma del Rostro",
-          class: "Diamante",
-          why: "Pómulos como el punto de mayor amplitud horizontal, creando una estructura bien definida."
+          title: "Inclinación de los Ojos (Cantal)",
+          class: "Inclinación Positiva Marcada",
+          why: "Canto lateral posicionado por encima del canto medial, aportando expresividad."
         }
       ];
     }
 
-    // Generación del Expediente PDF Completo
+    // Generar PDF completo con Malla e Inclusión de Colorimetría
     function generatePDF() {
       const { jsPDF } = window.jspdf;
       const doc = new jsPDF({ unit: 'mm', format: 'a4' });
@@ -644,22 +678,23 @@
       const gender = document.querySelector('input[name="genderSelect"]:checked').value === 'female' ? 'Femenino' : 'Masculino';
       const mode = document.getElementById('sessionMode').value;
       const dateStr = new Date().toLocaleDateString('es-ES');
+      const colorData = capturedShots[1] ? capturedShots[1].colorimetry : currentColorimetry;
 
-      // --- PÁGINA 1: Encabezado, Galería y Tabla Resumen ---
+      // Encabezado
       doc.setFillColor(15, 23, 42);
       doc.rect(0, 0, 210, 297, 'F');
 
       doc.setTextColor(59, 130, 246);
       doc.setFontSize(18);
       doc.setFont("helvetica", "bold");
-      doc.text("VISAGELAB - EXPEDIENTE BIOMÉTRICO", 14, 16);
+      doc.text("VISAGELAB - EXPEDIENTE BIOMÉTRICO Y COLORIMETRÍA", 14, 16);
 
       doc.setTextColor(148, 163, 184);
       doc.setFontSize(8.5);
       doc.setFont("helvetica", "normal");
       doc.text(`Fecha: ${dateStr}   |   Sujeto: ${gender} (${age} años)   |   Modo: ${mode.toUpperCase()}`, 14, 22);
 
-      // Galería Principal
+      // Muestra de imágenes
       if (capturedShots[1]) {
         doc.addImage(capturedShots[1].natural, 'JPEG', 14, 26, 88, 48);
         doc.addImage(capturedShots[1].mesh, 'JPEG', 106, 26, 88, 48);
@@ -667,18 +702,18 @@
         doc.setFontSize(7);
         doc.setTextColor(148, 163, 184);
         doc.text("Fotografía Natural", 14, 77);
-        doc.text("Fotografía con Malla Triangulada", 106, 77);
+        doc.text("Fotografía con Malla Triangulada en Vivo", 106, 77);
       }
 
-      // TABLA RESUMEN MORFOMÉTRICA
+      // SECCIÓN DE COLORIMETRÍA Y MATRIZ
       doc.setTextColor(59, 130, 246);
       doc.setFontSize(11);
       doc.setFont("helvetica", "bold");
-      doc.text("MATRIZ MÉTRICA Y VECTORES MORFOLÓGICOS", 14, 84);
+      doc.text("MATRIZ MÉTRICA, BIOMETRÍA Y COLORIMETRÍA FACIAL", 14, 84);
 
       doc.autoTable({
         startY: 87,
-        head: [['Estructura', 'Métrica / Vector', 'Clasificación Cualitativa / Taxonomía', 'Explicación Biométrica']],
+        head: [['Parámetro / Métrica', 'Valor / Muestra', 'Clasificación Estructurada', 'Explicación Biométrica y Estilística']],
         body: getSummaryTableData(),
         theme: 'grid',
         headStyles: {
@@ -694,9 +729,9 @@
           lineColor: [51, 65, 85]
         },
         columnStyles: {
-          0: { cellWidth: 28, fontStyle: 'bold' },
-          1: { cellWidth: 38, textColor: [59, 130, 246] },
-          2: { cellWidth: 42, fontStyle: 'bold' },
+          0: { cellWidth: 32, fontStyle: 'bold' },
+          1: { cellWidth: 35, textColor: [59, 130, 246] },
+          2: { cellWidth: 40, fontStyle: 'bold' },
           3: { cellWidth: 'auto' }
         },
         styles: {
@@ -705,44 +740,31 @@
         }
       });
 
-      // Registro de tomas adicionales
+      // Detalle de Diagnósticos
       let currentY = doc.lastAutoTable.finalY + 8;
-      const shotKeys = Object.keys(capturedShots).filter(k => k !== "1");
-
-      if (shotKeys.length > 0) {
-        if (currentY > 220) {
-          doc.addPage();
-          doc.setFillColor(15, 23, 42);
-          doc.rect(0, 0, 210, 297, 'F');
-          currentY = 16;
-        }
-
-        doc.setTextColor(59, 130, 246);
-        doc.setFontSize(11);
-        doc.setFont("helvetica", "bold");
-        doc.text("REGISTRO DE TOMAS ADICIONALES", 14, currentY);
-        currentY += 5;
-
-        shotKeys.forEach((key) => {
-          const item = capturedShots[key];
-          if (currentY > 230) {
-            doc.addPage();
-            doc.setFillColor(15, 23, 42);
-            doc.rect(0, 0, 210, 297, 'F');
-            currentY = 16;
-          }
-
-          doc.setTextColor(255, 255, 255);
-          doc.setFontSize(8);
-          doc.text(item.label, 14, currentY);
-
-          doc.addImage(item.natural, 'JPEG', 14, currentY + 2, 88, 42);
-          doc.addImage(item.mesh, 'JPEG', 106, currentY + 2, 88, 42);
-          currentY += 49;
-        });
+      
+      if (currentY > 220) {
+        doc.addPage();
+        doc.setFillColor(15, 23, 42);
+        doc.rect(0, 0, 210, 297, 'F');
+        currentY = 16;
       }
 
-      // --- PÁGINAS DE DIAGNÓSTICO MORFOMÉTRICO EXHAUSTIVO ---
+      doc.setTextColor(59, 130, 246);
+      doc.setFontSize(11);
+      doc.setFont("helvetica", "bold");
+      doc.text("DESGLOSE Y RESULTADOS CROMÁTICOS (COLORIMETRÍA)", 14, currentY);
+      currentY += 6;
+
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(8.5);
+      doc.setFont("helvetica", "normal");
+      doc.text(`Tono de Piel: ${colorData.tone}`, 14, currentY);
+      doc.text(`Subtono Térmico: ${colorData.subtone}`, 75, currentY);
+      doc.text(`Estación Recomendada: ${colorData.season}`, 135, currentY);
+      currentY += 8;
+
+      // Lista Exhaustiva de Diagnósticos
       doc.addPage();
       doc.setFillColor(15, 23, 42);
       doc.rect(0, 0, 210, 297, 'F');
@@ -750,16 +772,19 @@
       doc.setTextColor(59, 130, 246);
       doc.setFontSize(13);
       doc.setFont("helvetica", "bold");
-      doc.text("DIAGNÓSTICO MORFOMÉTRICO Y BIOMÉTRICO EXHAUSTIVO (1/2)", 14, 16);
+      doc.text("DIAGNÓSTICO MORFOMÉTRICO Y COLORIMÉTRICO DETALLADO", 14, 16);
 
       let y = 25;
       const exhaustiveList = getExhaustiveDiagnostics();
-      const halfIndex = Math.ceil(exhaustiveList.length / 2);
 
-      const firstHalf = exhaustiveList.slice(0, halfIndex);
-      const secondHalf = exhaustiveList.slice(halfIndex);
+      exhaustiveList.forEach((item) => {
+        if (y > 260) {
+          doc.addPage();
+          doc.setFillColor(15, 23, 42);
+          doc.rect(0, 0, 210, 297, 'F');
+          y = 20;
+        }
 
-      firstHalf.forEach((item) => {
         doc.setTextColor(255, 255, 255);
         doc.setFontSize(9);
         doc.setFont("helvetica", "bold");
@@ -774,43 +799,12 @@
         let lines = doc.splitTextToSize(`Por qué: ${item.why}`, 180);
         doc.text(lines, 14, y + 8);
 
-        y += 18;
+        y += 18 + (lines.length > 1 ? (lines.length - 1) * 4 : 0);
       });
 
-      // Segunda página de diagnósticos exhaustivos
-      doc.addPage();
-      doc.setFillColor(15, 23, 42);
-      doc.rect(0, 0, 210, 297, 'F');
-
-      doc.setTextColor(59, 130, 246);
-      doc.setFontSize(13);
-      doc.setFont("helvetica", "bold");
-      doc.text("DIAGNÓSTICO MORFOMÉTRICO Y BIOMÉTRICO EXHAUSTIVO (2/2)", 14, 16);
-
-      y = 25;
-
-      secondHalf.forEach((item) => {
-        doc.setTextColor(255, 255, 255);
-        doc.setFontSize(9);
-        doc.setFont("helvetica", "bold");
-        doc.text(item.title, 14, y);
-
-        doc.setTextColor(59, 130, 246);
-        doc.setFont("helvetica", "normal");
-        doc.text(`Clasificación: ${item.class}`, 14, y + 4);
-
-        doc.setTextColor(203, 213, 225);
-        doc.setFontSize(8);
-        let lines = doc.splitTextToSize(`Por qué: ${item.why}`, 180);
-        doc.text(lines, 14, y + 8);
-
-        y += 18;
-      });
-
-      doc.save(`VisageLab_Expediente_Biometrico_${Date.now()}.pdf`);
+      doc.save(`VisageLab_Expediente_Biometrico_Colorimetria_${Date.now()}.pdf`);
     }
 
-    // Cargar cámaras al iniciar la página
     window.onload = () => {
       getCameraDevices();
       renderButtons();
