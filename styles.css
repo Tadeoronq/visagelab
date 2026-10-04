@@ -1,9 +1,31 @@
-/* Estilos globales y personalización del Canvas */
+/* styles.css - Corrección de Proporción de Lente y Visor */
 body {
-  background-color: #090d16;
+  background-color: #020617;
 }
 
+/* Contenedor del Visor */
+.canvas-container {
+  position: relative;
+  width: 100%;
+  max-width: 1280px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background-color: #000000;
+  border-radius: 0.75rem;
+  overflow: hidden;
+  aspect-ratio: 16 / 9; /* Garantiza proporción fija estándar */
+}
+
+/* Forzar relación de aspecto exacta para evitar estiramientos */
 #output_canvas {
-  max-height: 75vh;
-  object-fit: contain;
+  width: 100%;
+  height: 100%;
+  object-fit: contain; /* NUNCA 'cover' ni 'fill' */
+  display: block;
+}
+
+/* Ocultar el video manteniendo el flujo de entrada intacto */
+#webcam {
+  display: none;
 }
