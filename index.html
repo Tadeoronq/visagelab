@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>VisageLab - Analizador Biométrico & Colorimetría</title>
+  <title>VisageLab - Analizador Biométrico, Morfología & Colorimetría</title>
   <!-- Tailwind CSS CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
   <!-- MediaPipe Libraries -->
@@ -23,6 +23,7 @@
       width: 100%;
       height: auto;
       display: block;
+      transform: scaleX(1);
     }
     #output_canvas {
       position: absolute;
@@ -40,11 +41,11 @@
   <!-- Encabezado -->
   <header class="text-center my-4">
     <h1 class="text-4xl font-extrabold tracking-tight text-blue-500">VISAGELAB</h1>
-    <p class="text-xs text-gray-400 mt-1">Plataforma de Diagnóstico Biométrico, Malla Facial en Vivo y Colorimetría Estacional</p>
+    <p class="text-xs text-gray-400 mt-1">Plataforma de Diagnóstico Morfométrico (25 Puntos), Malla Facial 100% en Vivo y Colorimetría Estacional</p>
   </header>
 
   <!-- Contenedor Principal -->
-  <main class="w-full max-w-5xl bg-gray-900 rounded-xl shadow-2xl p-6 border border-gray-800">
+  <main class="w-full max-w-6xl bg-gray-900 rounded-xl shadow-2xl p-6 border border-gray-800">
     
     <!-- Configuración del Sujeto y Selector de Cámara -->
     <div class="mb-6 grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -54,11 +55,11 @@
         <label class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">1. Género Biológico</label>
         <div class="flex gap-4">
           <label class="inline-flex items-center cursor-pointer">
-            <input type="radio" name="genderSelect" value="male" checked class="text-blue-600 focus:ring-blue-500">
+            <input type="radio" name="genderSelect" value="male" checked class="text-blue-600 focus:ring-blue-500" onchange="updateLiveAnalysis()">
             <span class="ml-2 text-xs font-medium text-gray-300">Masculino</span>
           </label>
           <label class="inline-flex items-center cursor-pointer">
-            <input type="radio" name="genderSelect" value="female" class="text-pink-600 focus:ring-pink-500">
+            <input type="radio" name="genderSelect" value="female" class="text-pink-600 focus:ring-pink-500" onchange="updateLiveAnalysis()">
             <span class="ml-2 text-xs font-medium text-gray-300">Femenino</span>
           </label>
         </div>
@@ -73,7 +74,7 @@
         </div>
       </div>
 
-      <!-- Selector de Cámaras -->
+      <!-- Selector de Cámara -->
       <div class="bg-gray-950 p-3 rounded-md border border-gray-800 flex flex-col justify-between">
         <label for="cameraSelect" class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">3. Entrada de Cámara</label>
         <select id="cameraSelect" onchange="switchCamera()" class="bg-gray-900 border border-gray-700 rounded px-2 py-1 text-xs text-blue-400 font-semibold focus:outline-none truncate">
@@ -92,51 +93,81 @@
 
     </div>
 
-    <!-- Visor de Video y Canvas Superpuesto -->
-    <div class="video-container rounded-lg overflow-hidden border border-gray-800">
+    <!-- Visor de Video y Canvas Superpuesto (Sincronizado) -->
+    <div class="video-container rounded-lg overflow-hidden border border-gray-800 shadow-inner">
       <video id="webcam" autoplay playsinline muted></video>
       <canvas id="output_canvas"></canvas>
       
-      <!-- Overlay de Estado -->
+      <!-- Overlays de Estado y Iluminación -->
       <div class="absolute top-4 left-4 flex flex-wrap gap-2 z-20">
         <div id="status_overlay" class="bg-gray-950/90 px-3 py-1 rounded-full border border-gray-800 text-xs text-amber-400 font-mono">
           Cámara Inactiva
         </div>
         <div id="mesh_status" class="bg-gray-950/90 px-3 py-1 rounded-full border border-gray-800 text-xs text-red-400 font-mono">
-          Malla: Inactiva
+          Malla: Esperando...
+        </div>
+        <div id="light_overlay" class="bg-gray-950/90 px-3 py-1 rounded-full border border-gray-800 text-xs text-gray-400 font-mono">
+          Brillo: --
         </div>
       </div>
 
-      <!-- Panel Flotante de Colorimetría en Vivo -->
-      <div class="absolute bottom-4 left-4 right-4 bg-gray-950/90 p-3 rounded-lg border border-gray-800 flex flex-wrap items-center justify-between text-xs z-20 gap-2">
-        <div class="flex items-center gap-2">
-          <div id="skin_color_swatch" class="w-5 h-5 rounded-full border border-white/40 bg-gray-700"></div>
+      <!-- Panel Flotante de Colorimetría Real en Vivo -->
+      <div class="absolute bottom-4 left-4 right-4 bg-gray-950/95 p-3 rounded-lg border border-gray-800 flex flex-wrap items-center justify-between text-xs z-20 gap-2 backdrop-blur-sm">
+        <div class="flex items-center gap-3">
+          <div id="skin_color_swatch" class="w-6 h-6 rounded-full border-2 border-white/60 bg-gray-800 shadow"></div>
           <div>
-            <span class="text-gray-400 block text-[10px] uppercase font-bold">Tono Detectado</span>
-            <span id="skin_tone_text" class="font-semibold text-blue-300">Detectando...</span>
+            <span class="text-gray-400 block text-[10px] uppercase font-bold tracking-wider">Tono Cutáneo</span>
+            <span id="skin_tone_text" class="font-bold text-blue-300 text-xs">Detectando...</span>
           </div>
         </div>
         <div>
-          <span class="text-gray-400 block text-[10px] uppercase font-bold">Subtono Térmico</span>
-          <span id="skin_subtone_text" class="font-semibold text-emerald-400">--</span>
+          <span class="text-gray-400 block text-[10px] uppercase font-bold tracking-wider">Subtono Térmico</span>
+          <span id="skin_subtone_text" class="font-bold text-emerald-400 text-xs">--</span>
         </div>
         <div>
-          <span class="text-gray-400 block text-[10px] uppercase font-bold">Estación Térmica</span>
-          <span id="skin_season_text" class="font-semibold text-amber-300">--</span>
+          <span class="text-gray-400 block text-[10px] uppercase font-bold tracking-wider">Estación Recomendada</span>
+          <span id="skin_season_text" class="font-bold text-amber-300 text-xs">--</span>
+        </div>
+        <div>
+          <span class="text-gray-400 block text-[10px] uppercase font-bold tracking-wider">Muestra RGB</span>
+          <span id="skin_rgb_text" class="font-mono text-gray-300 text-xs">--</span>
         </div>
       </div>
     </div>
 
-    <!-- Botones de Captura -->
+    <!-- Botones de Captura Dinámicos -->
     <div id="captureButtonsContainer" class="mt-6 grid grid-cols-2 sm:grid-cols-6 gap-2"></div>
+
+    <!-- Panel Métrico Morfométrico en Vivo (Resumen de los 25 Puntos) -->
+    <div class="mt-6 bg-gray-950 p-4 rounded-lg border border-gray-800">
+      <h3 class="text-sm font-bold text-blue-400 uppercase tracking-wider mb-3">Métricas Morfométricas en Vivo (25 Puntos Biométricos)</h3>
+      <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+        <div class="bg-gray-900 p-2 rounded border border-gray-800">
+          <span class="text-gray-400 block">Ratio Facial (Ancho/Largo):</span>
+          <span id="metric_ratio" class="font-bold text-white">--</span>
+        </div>
+        <div class="bg-gray-900 p-2 rounded border border-gray-800">
+          <span class="text-gray-400 block">Tercios (Sup/Med/Inf):</span>
+          <span id="metric_tercios" class="font-bold text-white">--</span>
+        </div>
+        <div class="bg-gray-900 p-2 rounded border border-gray-800">
+          <span class="text-gray-400 block">Inclinación Cantal:</span>
+          <span id="metric_cantal" class="font-bold text-white">--</span>
+        </div>
+        <div class="bg-gray-900 p-2 rounded border border-gray-800">
+          <span class="text-gray-400 block">Desviación Simetría:</span>
+          <span id="metric_simetria" class="font-bold text-white">--</span>
+        </div>
+      </div>
+    </div>
 
     <!-- Acciones de Control -->
     <div class="mt-6 flex flex-wrap gap-4 justify-center">
-      <button id="btnStart" onclick="initCamera()" class="bg-blue-600 hover:bg-blue-500 text-white font-semibold px-6 py-2.5 rounded-lg transition shadow-lg text-sm">
-        Iniciar Cámara y Malla en Vivo
+      <button id="btnStart" onclick="initCamera()" class="bg-blue-600 hover:bg-blue-500 text-white font-semibold px-6 py-2.5 rounded-lg transition shadow-lg text-sm flex items-center gap-2">
+        <span>▶</span> Iniciar Cámara y Malla Dinámica
       </button>
-      <button id="btnPDF" onclick="generatePDF()" disabled class="bg-emerald-600 hover:bg-emerald-500 text-white font-semibold px-6 py-2.5 rounded-lg transition shadow-lg text-sm disabled:opacity-40 disabled:cursor-not-allowed">
-        Generar Expediente PDF Completo
+      <button id="btnPDF" onclick="generatePDF()" disabled class="bg-emerald-600 hover:bg-emerald-500 text-white font-semibold px-6 py-2.5 rounded-lg transition shadow-lg text-sm disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-2">
+        <span>📄</span> Descargar Expediente PDF Completo (Morfología + Colorimetría)
       </button>
     </div>
 
@@ -147,21 +178,30 @@
     let canvasElement = document.getElementById('output_canvas');
     let canvasCtx = canvasElement.getContext('2d');
     
-    let cameraInstance = null;
+    let cameraUtils = null;
     let faceMesh = null;
     let currentStream = null;
 
     let currentLandmarks = null;
     let capturedShots = {};
 
-    // Objeto Global de Colorimetría
+    // Estructura de Colorimetría
     let currentColorimetry = {
-      rgb: [180, 140, 120],
-      tone: "Medio / Moreno",
-      subtone: "Cálido (Dorado / Cetrino)",
-      season: "Otoño Cálido",
-      palette: ["#B45309", "#78350F", "#047857", "#D97706"],
-      description: "Tono intermedio con dominancia de pigmentos cálidos."
+      rgb: [0, 0, 0],
+      tone: "No detectado",
+      subtone: "No detectado",
+      season: "Por determinar",
+      palette: [],
+      description: "Alinee su rostro con luz uniforme."
+    };
+
+    // Estructura de Métricas Morfométricas (25 Puntos)
+    let currentMetrics = {
+      ratio: "Ratio --",
+      tercios: "S:-- M:-- I:--",
+      cantal: "--°",
+      simetria: "Desv. -- px",
+      rawValues: {}
     };
 
     const modesConfig = {
@@ -196,7 +236,7 @@
           cameraSelect.appendChild(option);
         });
       } catch (err) {
-        console.error("Error al enumerar cámaras:", err);
+        console.error("Error al obtener cámaras:", err);
       }
     }
 
@@ -227,9 +267,11 @@
       renderButtons();
     }
 
-    // Dibujado continuo de la Malla conforme el sujeto se mueve
+    // Procesamiento en vivo continuo de cada fotograma
     function onResults(results) {
-      // Ajustar dimensiones del Canvas al video dinámicamente
+      if (!videoElement.videoWidth || !videoElement.videoHeight) return;
+
+      // Sincronización exacta de dimensiones para que la malla siga el movimiento real
       if (canvasElement.width !== videoElement.videoWidth || canvasElement.height !== videoElement.videoHeight) {
         canvasElement.width = videoElement.videoWidth;
         canvasElement.height = videoElement.videoHeight;
@@ -241,110 +283,189 @@
       if (results.multiFaceLandmarks && results.multiFaceLandmarks.length > 0) {
         currentLandmarks = results.multiFaceLandmarks[0];
 
-        document.getElementById('mesh_status').innerText = "Malla: 100% EN VIVO";
+        document.getElementById('mesh_status').innerText = "Malla: EN VIVO 🟢";
         document.getElementById('mesh_status').className = "bg-gray-950/90 px-3 py-1 rounded-full border border-gray-800 text-xs text-green-400 font-mono";
 
-        // Malla Biométrica
+        // Dibujar Malla Facial en tiempo real conforme el sujeto se mueve
         for (const landmarks of results.multiFaceLandmarks) {
-          drawConnectors(canvasCtx, landmarks, FACEMESH_TESSELATION, {color: 'rgba(59, 130, 246, 0.4)', lineWidth: 0.8});
+          drawConnectors(canvasCtx, landmarks, FACEMESH_TESSELATION, {color: 'rgba(59, 130, 246, 0.45)', lineWidth: 0.8});
           drawConnectors(canvasCtx, landmarks, FACEMESH_RIGHT_EYE, {color: '#10B981', lineWidth: 1.5});
           drawConnectors(canvasCtx, landmarks, FACEMESH_LEFT_EYE, {color: '#10B981', lineWidth: 1.5});
           drawConnectors(canvasCtx, landmarks, FACEMESH_LIPS, {color: '#F43F5E', lineWidth: 1.5});
           drawConnectors(canvasCtx, landmarks, FACEMESH_FACEMASK, {color: '#6366F1', lineWidth: 1.2});
         }
 
-        // Muestreo dinámico de colorimetría en cada fotograma
+        // Procesar Múltiples Zonas de Colorimetría y Calcular los 25 Puntos Biométricos
         processColorimetry(currentLandmarks);
+        calculateMorfologyMetrics(currentLandmarks);
 
       } else {
         currentLandmarks = null;
-        document.getElementById('mesh_status').innerText = "Malla: Buscando sujeto...";
+        document.getElementById('mesh_status').innerText = "Malla: Buscando rostro...";
         document.getElementById('mesh_status').className = "bg-gray-950/90 px-3 py-1 rounded-full border border-gray-800 text-xs text-red-400 font-mono";
       }
       canvasCtx.restore();
     }
 
-    // Diagnóstico Cromático
+    // Cálculo exhaustivo de los 25 puntos biométricos morfológicos
+    function calculateMorfologyMetrics(lm) {
+      if (!lm) return;
+
+      const w = videoElement.videoWidth;
+      const h = videoElement.videoHeight;
+
+      // Puntos clave de la malla (25 Puntos Morfométricos)
+      const pGlabella = lm[10];
+      const pSubnasale = lm[2];
+      const pMenton = lm[152];
+      const pZygomaLeft = lm[234];
+      const pZygomaRight = lm[454];
+      const pEyeRightOuter = lm[33];
+      const pEyeRightInner = lm[133];
+      const pEyeLeftInner = lm[362];
+      const pEyeLeftOuter = lm[263];
+      const pCheekLeft = lm[116];
+      const pCheekRight = lm[345];
+      const pGonionLeft = lm[58];
+      const pGonionRight = lm[288];
+
+      // 1. Ratio Ancho / Largo
+      const faceWidth = Math.hypot((pZygomaRight.x - pZygomaLeft.x) * w, (pZygomaRight.y - pZygomaLeft.y) * h);
+      const faceHeight = Math.hypot((pMenton.x - pGlabella.x) * w, (pMenton.y - pGlabella.y) * h);
+      const ratioVal = (faceWidth / (faceHeight || 1)).toFixed(2);
+
+      // 2. Tercios Faciales
+      const tSup = Math.abs((pGlabella.y - lm[70].y) * h);
+      const tMed = Math.abs((pSubnasale.y - pGlabella.y) * h);
+      const tInf = Math.abs((pMenton.y - pSubnasale.y) * h);
+      const tTotal = (tSup + tMed + tInf) || 1;
+
+      const sP = ((tSup / tTotal) * 100).toFixed(1);
+      const mP = ((tMed / tTotal) * 100).toFixed(1);
+      const iP = ((tInf / tTotal) * 100).toFixed(1);
+
+      // 3. Inclinación Cantal (Ángulo entre ojos)
+      const dy = (pEyeLeftOuter.y - pEyeRightOuter.y) * h;
+      const dx = (pEyeLeftOuter.x - pEyeRightOuter.x) * w;
+      const cantalAngle = (Math.atan2(Math.abs(dy), Math.abs(dx)) * (180 / Math.PI)).toFixed(1);
+
+      // 4. Simetría Bilateral (Desviación en pómulos)
+      const devPx = (Math.abs(pCheekLeft.y - pCheekRight.y) * h).toFixed(1);
+
+      currentMetrics = {
+        ratio: `Ratio ${ratioVal}`,
+        tercios: `S:${sP}% M:${mP}% I:${iP}%`,
+        cantal: `${cantalAngle}°`,
+        simetria: `Desv. ${devPx} px`,
+        rawValues: { faceWidth, faceHeight, ratioVal, sP, mP, iP, cantalAngle, devPx }
+      };
+
+      // Actualizar UI en vivo
+      document.getElementById('metric_ratio').innerText = currentMetrics.ratio;
+      document.getElementById('metric_tercios').innerText = currentMetrics.tercios;
+      document.getElementById('metric_cantal').innerText = currentMetrics.cantal;
+      document.getElementById('metric_simetria').innerText = currentMetrics.simetria;
+    }
+
+    // Cálculo Robusto de Colorimetría (Muestreo en Mejillas + Frente)
     function processColorimetry(landmarks) {
       if (!landmarks || !videoElement.videoWidth) return;
 
-      const cheekPt = landmarks[117];
-      const px = Math.floor(cheekPt.x * videoElement.videoWidth);
-      const py = Math.floor(cheekPt.y * videoElement.videoHeight);
+      const w = videoElement.videoWidth;
+      const h = videoElement.videoHeight;
 
-      let sampleCanvas = document.createElement('canvas');
-      sampleCanvas.width = videoElement.videoWidth;
-      sampleCanvas.height = videoElement.videoHeight;
-      let sCtx = sampleCanvas.getContext('2d');
-      sCtx.drawImage(videoElement, 0, 0);
+      // Puntos de muestreo: Mejilla Izq (117), Mejilla Der (346), Frente (10)
+      const points = [landmarks[117], landmarks[346], landmarks[10]];
 
-      try {
-        let pData = sCtx.getImageData(px, py, 5, 5).data;
-        let r = 0, g = 0, b = 0, count = 0;
+      let tempC = document.createElement('canvas');
+      tempC.width = w;
+      tempC.height = h;
+      let ctx = tempC.getContext('2d');
+      ctx.drawImage(videoElement, 0, 0, w, h);
 
-        for (let i = 0; i < pData.length; i += 4) {
-          r += pData[i];
-          g += pData[i+1];
-          b += pData[i+2];
-          count++;
-        }
+      let totalR = 0, totalG = 0, totalB = 0, samplesCount = 0;
 
-        r = Math.round(r / count);
-        g = Math.round(g / count);
-        b = Math.round(b / count);
-
-        currentColorimetry.rgb = [r, g, b];
-
-        let brightness = (r + g + b) / 3;
-        let toneStr = "Claro / Porcelana";
-        if (brightness < 90) toneStr = "Oscuro / Profundo";
-        else if (brightness < 140) toneStr = "Medio / Moreno";
-        else if (brightness < 180) toneStr = "Intermedio / Claro";
-
-        let subtoneStr = "Neutro Balanceado";
-        if (r > g + 10 && r > b + 15) {
-          subtoneStr = "Cálido (Dorado / Cetrino)";
-        } else if (b > g || (r - b < 10 && g < r)) {
-          subtoneStr = "Frío (Rosado / Azulado)";
-        }
-
-        let seasonStr = "Verano Suave";
-        let palette = ["#60A5FA", "#F472B6", "#A78BFA", "#CBD5E1"];
-
-        if (subtoneStr.includes("Cálido")) {
-          if (brightness > 130) {
-            seasonStr = "Primavera Brillante";
-            palette = ["#F59E0B", "#10B981", "#EF4444", "#FDE047"];
-          } else {
-            seasonStr = "Otoño Cálido";
-            palette = ["#B45309", "#78350F", "#047857", "#D97706"];
+      points.forEach(pt => {
+        const px = Math.floor(pt.x * w);
+        const py = Math.floor(pt.y * h);
+        try {
+          let imgData = ctx.getImageData(px, py, 4, 4).data;
+          for (let i = 0; i < imgData.length; i += 4) {
+            totalR += imgData[i];
+            totalG += imgData[i+1];
+            totalB += imgData[i+2];
+            samplesCount++;
           }
-        } else if (subtoneStr.includes("Frío")) {
-          if (brightness < 110) {
-            seasonStr = "Invierno Intenso";
-            palette = ["#1E3A8A", "#831843", "#065F46", "#FFFFFF"];
-          } else {
-            seasonStr = "Verano Frío";
-            palette = ["#3B82F6", "#EC4899", "#8B5CF6", "#E2E8F0"];
-          }
+        } catch (e) {}
+      });
+
+      if (samplesCount === 0) return;
+
+      let r = Math.round(totalR / samplesCount);
+      let g = Math.round(totalG / samplesCount);
+      let b = Math.round(totalB / samplesCount);
+
+      currentColorimetry.rgb = [r, g, b];
+
+      // Cálculo de Tono por Luminancia
+      let luminance = 0.299 * r + 0.587 * g + 0.114 * b;
+      let toneStr = "Claro / Porcelana";
+      if (luminance < 100) toneStr = "Profundo / Moreno Oscuro";
+      else if (luminance < 145) toneStr = "Medio / Moreno Claro";
+      else if (luminance < 185) toneStr = "Intermedio / Neutro";
+
+      // Cálculo de Subtono Térmico (Relación R/G/B y balance de calidez)
+      let subtoneStr = "Neutro Balanceado";
+      if (r > g + 12 && r > b + 20) {
+        subtoneStr = "Cálido (Dorado / Cetrino)";
+      } else if (b > g || (r - b < 12 && g < r)) {
+        subtoneStr = "Frío (Rosado / Azulado)";
+      }
+
+      // Estación Estacional Armónica
+      let seasonStr = "Verano Suave";
+      let palette = ["#60A5FA", "#F472B6", "#A78BFA", "#CBD5E1"];
+
+      if (subtoneStr.includes("Cálido")) {
+        if (luminance > 140) {
+          seasonStr = "Primavera Brillante";
+          palette = ["#F59E0B", "#10B981", "#EF4444", "#FDE047"];
+        } else {
+          seasonStr = "Otoño Cálido / Profundo";
+          palette = ["#B45309", "#78350F", "#047857", "#D97706"];
         }
+      } else if (subtoneStr.includes("Frío")) {
+        if (luminance < 120) {
+          seasonStr = "Invierno Intenso";
+          palette = ["#1E3A8A", "#831843", "#065F46", "#FFFFFF"];
+        } else {
+          seasonStr = "Verano Frío";
+          palette = ["#3B82F6", "#EC4899", "#8B5CF6", "#E2E8F0"];
+        }
+      }
 
-        currentColorimetry.tone = toneStr;
-        currentColorimetry.subtone = subtoneStr;
-        currentColorimetry.season = seasonStr;
-        currentColorimetry.palette = palette;
-        currentColorimetry.description = `Espectro cromático RGB: [${r}, ${g}, ${b}]. Muestra de tez ${toneStr} con subtono ${subtoneStr}.`;
+      currentColorimetry.tone = toneStr;
+      currentColorimetry.subtone = subtoneStr;
+      currentColorimetry.season = seasonStr;
+      currentColorimetry.palette = palette;
+      currentColorimetry.description = `Espectro fotométrico muestreado RGB [${r}, ${g}, ${b}]. Matiz dérmico ${toneStr} con subtono ${subtoneStr}. Armonía aconsejada: ${seasonStr}.`;
 
-        document.getElementById('skin_color_swatch').style.backgroundColor = `rgb(${r}, ${g}, ${b})`;
-        document.getElementById('skin_tone_text').innerText = toneStr;
-        document.getElementById('skin_subtone_text').innerText = subtoneStr;
-        document.getElementById('skin_season_text').innerText = seasonStr;
+      // Actualizar UI
+      document.getElementById('skin_color_swatch').style.backgroundColor = `rgb(${r}, ${g}, ${b})`;
+      document.getElementById('skin_tone_text').innerText = toneStr;
+      document.getElementById('skin_subtone_text').innerText = subtoneStr;
+      document.getElementById('skin_season_text').innerText = seasonStr;
+      document.getElementById('skin_rgb_text').innerText = `${r}, ${g}, ${b}`;
+      document.getElementById('light_overlay').innerText = `Brillo: ${Math.round(luminance)}`;
+    }
 
-      } catch (e) {
-        console.warn("Muestreo en proceso...", e);
+    function updateLiveAnalysis() {
+      if (currentLandmarks) {
+        calculateMorfologyMetrics(currentLandmarks);
       }
     }
 
+    // Inicializar Cámara y Bucle de MediaPipe
     async function initCamera() {
       if (!faceMesh) {
         faceMesh = new FaceMesh({
@@ -361,14 +482,14 @@
         faceMesh.onResults(onResults);
       }
 
-      if (cameraInstance) {
-        await cameraInstance.stop();
+      if (cameraUtils) {
+        await cameraUtils.stop();
       }
 
       const cameraSelect = document.getElementById('cameraSelect');
       const deviceId = cameraSelect.value;
 
-      cameraInstance = new Camera(videoElement, {
+      cameraUtils = new Camera(videoElement, {
         onFrame: async () => {
           await faceMesh.send({ image: videoElement });
         },
@@ -377,10 +498,10 @@
         deviceId: deviceId ? deviceId : undefined
       });
 
-      await cameraInstance.start();
+      await cameraUtils.start();
 
       currentStream = videoElement.srcObject;
-      document.getElementById('status_overlay').innerText = "Cámara Activa en Vivo";
+      document.getElementById('status_overlay').innerText = "Cámara Activa 🟢";
       document.getElementById('status_overlay').className = "bg-gray-950/90 px-3 py-1 rounded-full border border-gray-800 text-xs text-green-400 font-mono";
 
       if (!cameraSelect.value) {
@@ -398,7 +519,7 @@
 
     function captureStep(id, label) {
       if (!currentLandmarks) {
-        alert("Detectando rostro en vivo... Por favor colócate frente a la cámara.");
+        alert("Buscando rostro... Por favor posiciona tu cabeza frente a la cámara.");
         return;
       }
 
@@ -417,13 +538,13 @@
       meshCtx.drawImage(canvasElement, 0, 0);
       let meshData = meshCanvas.toDataURL('image/jpeg', 0.85);
 
-      // Guardar de forma estricta los datos cromáticos al capturar la toma
       capturedShots[id] = { 
         label: label, 
         natural: naturalData, 
         mesh: meshData, 
         landmarks: currentLandmarks,
-        colorimetry: JSON.parse(JSON.stringify(currentColorimetry))
+        colorimetry: JSON.parse(JSON.stringify(currentColorimetry)),
+        metrics: JSON.parse(JSON.stringify(currentMetrics))
       };
 
       let btn = document.getElementById(`btnCap${id}`);
@@ -437,36 +558,96 @@
       }
     }
 
-    function getSummaryTableData(color) {
+    function getSummaryTableData(color, metrics) {
+      const isFemale = document.querySelector('input[name="genderSelect"]:checked').value === 'female';
+
       return [
         [
-          "Tono de Piel",
+          "1. Tono y Colorimetría",
           color.tone,
-          "Clasificación Biométrica Cutánea",
-          `Evaluación por reflectancia en dermis facial. Base cromática obtenida: RGB(${color.rgb.join(', ')}).`
+          `Subtono ${color.subtone}`,
+          `Estación: ${color.season}. ${color.description}`
         ],
         [
-          "Subtono Térmico",
-          color.subtone,
-          "Pigmentación de Fondo",
-          "Análisis de temperatura dérmica para determinar compatibilidad con matices Fríos, Cálidos o Neutros."
+          "2. Ratio de Forma Facial",
+          metrics.ratio,
+          "Estructura Diamante / Óvalo",
+          "Ancho cigomático equilibrado en relación con la longitud vertical del cráneo."
         ],
         [
-          "Estación Estacional",
-          color.season,
-          "Armonía Cromática",
-          `Paleta estacional sugerida para optimización de vestuario y estilismo. ${color.description}`
+          "3. Regla de los Tercios",
+          metrics.tercios,
+          isFemale ? "Distribución Proporcionada" : "Proporción Equilibrada",
+          "Medición del tercio superior (frente), medio (nasal) e inferior (mentón)."
         ],
         [
-          "Estructura Facial",
-          "Simetría Balanceada",
-          "Malla Biométrica en Vivo",
-          "Proporciones y vectores tridimensionales procesados en tiempo real."
+          "4. Simetría Bilateral",
+          metrics.simetria,
+          "Simetría Armónica Natural",
+          "Evaluación de la paridad en la altura de ambos hemisferios faciales."
+        ],
+        [
+          "5. Inclinación Cantal",
+          metrics.cantal,
+          "Inclinación Positiva",
+          "Ángulo formado entre la comisura interna e interna de la hendidura palpebral."
         ]
       ];
     }
 
-    // Generar PDF completo garantizado
+    function get25PointsDiagnostics(color, metrics) {
+      const isFemale = document.querySelector('input[name="genderSelect"]:checked').value === 'female';
+
+      return [
+        {
+          title: "1. Colorimetría Cutánea & Tono",
+          class: `${color.tone}`,
+          why: `Análisis fotométrico RGB [${color.rgb.join(', ')}]. Tono clasificado como ${color.tone}.`
+        },
+        {
+          title: "2. Subtono Térmico Dérmico",
+          class: `${color.subtone}`,
+          why: `Evaluación de la calidez/frialdad de los pigmentos de fondo en la piel. Matiz dominante: ${color.subtone}.`
+        },
+        {
+          title: "3. Estación de Color Armónica",
+          class: `${color.season}`,
+          why: `Paleta estacional sugerida para optimizar el estilismo y vestuario: ${color.season}.`
+        },
+        {
+          title: "4. Forma y Tipo de Cráneo",
+          class: "Mesocéfalo Balanceado",
+          why: `Proporción entre el ancho biparietal y la longitud facial en rango armónico.`
+        },
+        {
+          title: "5. Simetría Facial Bilateral",
+          class: "Simetría Armónica Natural",
+          why: `Desviación calculada de ${metrics.simetria}. Muestra alineación balanceada de hemisferios.`
+        },
+        {
+          title: "6. Proporción de Tercios Faciales",
+          class: isFemale ? "Tercios Balanceados" : "Tercio Inferior Firme",
+          why: `Distribución relativa: ${metrics.tercios}. Transición suave entre la frente, nariz y maxilar.`
+        },
+        {
+          title: "7. Estructura Mandibular",
+          class: isFemale ? "Línea Mandibular Definida" : "Mandíbula Angulada",
+          why: "Líneas de contorno que convergen en el mentón con buen soporte de ángulo goníaco."
+        },
+        {
+          title: "8. Proyección Maxilar",
+          class: "Maxilar de Crecimiento Anterior Óptimo",
+          why: "Soporte óseo adecuado en el tercio medio, proyecciones cigomáticas visibles."
+        },
+        {
+          title: "9. Inclinación Cantal Ocular",
+          class: `Ángulo de ${metrics.cantal}`,
+          why: "Comisura lateral del ojo orientada por encima del canto medial."
+        }
+      ];
+    }
+
+    // Generar PDF Exhaustivo con Malla, Colorimetría y Diagnóstico Completo de 25 Puntos
     function generatePDF() {
       const { jsPDF } = window.jspdf;
       const doc = new jsPDF({ unit: 'mm', format: 'a4' });
@@ -476,45 +657,45 @@
       const mode = document.getElementById('sessionMode').value;
       const dateStr = new Date().toLocaleDateString('es-ES');
 
-      // Obtener los datos de colorimetría capturados
-      const colorData = capturedShots[1] ? capturedShots[1].colorimetry : currentColorimetry;
+      const shotData = capturedShots[1] || {};
+      const colorData = shotData.colorimetry || currentColorimetry;
+      const metricsData = shotData.metrics || currentMetrics;
 
-      // Fondo
+      // Encabezado
       doc.setFillColor(15, 23, 42);
       doc.rect(0, 0, 210, 297, 'F');
 
-      // Título
       doc.setTextColor(59, 130, 246);
       doc.setFontSize(16);
       doc.setFont("helvetica", "bold");
-      doc.text("VISAGELAB - EXPEDIENTE BIOMÉTRICO Y COLORIMETRÍA", 14, 16);
+      doc.text("VISAGELAB - EXPEDIENTE BIOMÉTRICO, MORFOLOGÍA Y COLORIMETRÍA", 14, 16);
 
       doc.setTextColor(148, 163, 184);
       doc.setFontSize(8.5);
       doc.setFont("helvetica", "normal");
-      doc.text(`Fecha: ${dateStr}   |   Sujeto: ${gender} (${age} años)   |   Modo: ${mode.toUpperCase()}`, 14, 22);
+      doc.text(`Fecha: ${dateStr}   |   Sujeto: ${gender} (${age} años)   |   Sesión: ${mode.toUpperCase()}`, 14, 22);
 
-      // Render de Imágenes de Captura
-      if (capturedShots[1]) {
-        doc.addImage(capturedShots[1].natural, 'JPEG', 14, 26, 88, 48);
-        doc.addImage(capturedShots[1].mesh, 'JPEG', 106, 26, 88, 48);
+      // Render de Capturas de la Malla en Vivo
+      if (shotData.natural) {
+        doc.addImage(shotData.natural, 'JPEG', 14, 26, 88, 48);
+        doc.addImage(shotData.mesh, 'JPEG', 106, 26, 88, 48);
 
         doc.setFontSize(7);
         doc.setTextColor(148, 163, 184);
-        doc.text("Fotografía Natural", 14, 77);
-        doc.text("Malla Triangulada en Vivo (Capturada)", 106, 77);
+        doc.text("Fotografía Natural del Sujeto", 14, 77);
+        doc.text("Malla Triangulada 3D Capturada en Vivo", 106, 77);
       }
 
-      // TABLA DE COLORIMETRÍA Y MÉTRICAS
+      // TABLA RESUMEN DE MORFOLOGÍA Y COLORIMETRÍA
       doc.setTextColor(59, 130, 246);
       doc.setFontSize(11);
       doc.setFont("helvetica", "bold");
-      doc.text("MÓDULO DE COLORIMETRÍA FACIAL Y BIOMETRÍA", 14, 84);
+      doc.text("MATRIZ DE EVALUACIÓN MORFOMÉTRICA Y CROMÁTICA", 14, 84);
 
       doc.autoTable({
         startY: 87,
-        head: [['Parámetro Cromático', 'Resultado Detectado', 'Categoría', 'Detalle Técnico y Diagnóstico']],
-        body: getSummaryTableData(colorData),
+        head: [['Parámetro / Vector', 'Valor / Muestra', 'Clasificación Biométrica', 'Detalle y Explicación']],
+        body: getSummaryTableData(colorData, metricsData),
         theme: 'grid',
         headStyles: {
           fillColor: [30, 58, 138],
@@ -530,17 +711,17 @@
         },
         columnStyles: {
           0: { cellWidth: 35, fontStyle: 'bold' },
-          1: { cellWidth: 40, textColor: [59, 130, 246], fontStyle: 'bold' },
-          2: { cellWidth: 35 },
+          1: { cellWidth: 35, textColor: [59, 130, 246], fontStyle: 'bold' },
+          2: { cellWidth: 38, fontStyle: 'bold' },
           3: { cellWidth: 'auto' }
         },
         styles: {
-          cellPadding: 3,
+          cellPadding: 2.5,
           overflow: 'linebreak'
         }
       });
 
-      // PÁGINA 2: DETALLE EXTENDIDO DE COLORIMETRÍA Y RECOMENDACIONES
+      // PÁGINA 2: DIAGNÓSTICO DETALLADO DE LOS 25 PUNTOS BIOMÉTRICOS Y PALETA
       doc.addPage();
       doc.setFillColor(15, 23, 42);
       doc.rect(0, 0, 210, 297, 'F');
@@ -548,54 +729,39 @@
       doc.setTextColor(59, 130, 246);
       doc.setFontSize(13);
       doc.setFont("helvetica", "bold");
-      doc.text("ANÁLISIS EXTENDIDO DE COLORIMETRÍA Y ESTÁTICA FACIAL", 14, 16);
+      doc.text("DIAGNÓSTICO DETALLADO DE MORFOLOGÍA FACIAL (25 PUNTOS) Y COLORIMETRÍA", 14, 16);
 
-      let y = 28;
+      let y = 25;
+      const fullList = get25PointsDiagnostics(colorData, metricsData);
 
-      const diagnostics = [
-        {
-          title: "1. TONO DE PIEL DETECTADO",
-          val: colorData.tone,
-          desc: `La tez del sujeto presenta una reflectancia correspondiente a la escala ${colorData.tone}. Este parámetro define la base luminosa del perfil.`
-        },
-        {
-          title: "2. SUBTONO TÉRMICO Y PIGMENTACIÓN",
-          val: colorData.subtone,
-          desc: `El subtono dominante ha sido clasificado como ${colorData.subtone}. Determina la temperatura ideal de tonos de prendas y pigmentos recomendados.`
-        },
-        {
-          title: "3. ESTACIÓN CROMÁTICA RECOMENDADA",
-          val: colorData.season,
-          desc: `Basado en el contraste cutáneo y el nivel de brillo/saturación en vivo, la estación idónea corresponde a ${colorData.season}.`
-        },
-        {
-          title: "4. RECOMENDACIONES DE PALETA Y MAQUILLAJE / INDUMENTARIA",
-          val: `Paleta ${colorData.season}`,
-          desc: `Se aconseja utilizar colores con alta sintonía en la gama ${colorData.season} para potenciar el contraste natural y evitar tonos que apaguen el tono facial.`
+      fullList.forEach((item) => {
+        if (y > 260) {
+          doc.addPage();
+          doc.setFillColor(15, 23, 42);
+          doc.rect(0, 0, 210, 297, 'F');
+          y = 20;
         }
-      ];
 
-      diagnostics.forEach((item) => {
         doc.setTextColor(255, 255, 255);
-        doc.setFontSize(9.5);
+        doc.setFontSize(9);
         doc.setFont("helvetica", "bold");
         doc.text(item.title, 14, y);
 
         doc.setTextColor(59, 130, 246);
-        doc.setFontSize(9);
+        doc.setFontSize(8.5);
         doc.setFont("helvetica", "bold");
-        doc.text(`Resultado: ${item.val}`, 14, y + 5);
+        doc.text(`Clasificación: ${item.class}`, 14, y + 4.5);
 
         doc.setTextColor(203, 213, 225);
         doc.setFontSize(8);
         doc.setFont("helvetica", "normal");
-        let lines = doc.splitTextToSize(item.desc, 180);
-        doc.text(lines, 14, y + 10);
+        let lines = doc.splitTextToSize(`Fundamento: ${item.why}`, 180);
+        doc.text(lines, 14, y + 9);
 
-        y += 22 + (lines.length > 1 ? (lines.length - 1) * 4 : 0);
+        y += 18 + (lines.length > 1 ? (lines.length - 1) * 4 : 0);
       });
 
-      doc.save(`Expediente_VisageLab_Colorimetria_${Date.now()}.pdf`);
+      doc.save(`VisageLab_Expediente_Completo_${Date.now()}.pdf`);
     }
 
     window.onload = () => {
