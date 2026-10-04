@@ -1,0 +1,9 @@
+/* Estilos globales y personalización del Canvas */
+body {
+  background-color: #090d16;
+}
+
+#output_canvas {
+  max-height: 75vh;
+  object-fit: contain;
+}

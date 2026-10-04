@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>VisageLab - Biometría & Colorimetría</title>
+  
+  <!-- Estilos base y librerías -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js" crossorigin="anonymous"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
+  
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body class="bg-gray-950 text-gray-100 min-h-screen font-sans p-4">
+
+  <header class="max-w-7xl mx-auto mb-6 flex justify-between items-center border-b border-gray-800 pb-4">
+    <h1 class="text-2xl font-bold text-indigo-400">VisageLab <span class="text-xs text-gray-400 font-normal">v2.0 Modular</span></h1>
+    <button id="btnExportPDF" class="bg-indigo-600 hover:bg-indigo-500 px-4 py-2 rounded-lg font-medium transition-all text-sm">
+      Exportar Expediente PDF
+    </button>
+  </header>
+
+  <main class="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <!-- Visor de Video y Canvas -->
+    <section class="lg:col-span-2 bg-gray-900 rounded-xl p-4 border border-gray-800 flex flex-col items-center justify-center relative min-h-[480px]">
+      <video id="webcam" class="hidden" autoplay playsinline></video>
+      <canvas id="output_canvas" class="w-full h-auto rounded-lg bg-black"></canvas>
+    </section>
+
+    <!-- Panel de Resultados -->
+    <aside class="space-y-6">
+      <div id="biometrics-panel" class="bg-gray-900 rounded-xl p-4 border border-gray-800">
+        <h2 class="text-lg font-semibold text-indigo-300 mb-3">Morfología y Biometría</h2>
+        <div id="biometrics-data" class="text-sm space-y-2 text-gray-300">
+          <p class="text-gray-500 italic">Esperando señal de cámara...</p>
+        </div>
+      </div>
+
+      <div id="colorimetry-panel" class="bg-gray-900 rounded-xl p-4 border border-gray-800">
+        <h2 class="text-lg font-semibold text-rose-300 mb-3">Colorimetría y Fotometría</h2>
+        <div id="colorimetry-data" class="text-sm space-y-2 text-gray-300">
+          <p class="text-gray-500 italic">Esperando lectura...</p>
+        </div>
+      </div>
+    </aside>
+  </main>
+
+  <!-- Módulos JS -->
+  <script src="colorimetry.js"></script>
+  <script src="biometrics.js"></script>
+  <script src="pdf-generator.js"></script>
+  <script src="main.js"></script>
+</body>
+</html>
