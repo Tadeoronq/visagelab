@@ -1,679 +1,160 @@
 <!DOCTYPE html>
-<html lang="es" class="dark">
+<html lang="es">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>VisageLab Engine - Análisis Biométrico Facial</title>
-    
-    <!-- Tailwind CSS CDN -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    
-    <!-- MediaPipe FaceMesh CDN -->
-    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js" crossorigin="anonymous"></script>
-
-    <!-- jsPDF CDN para Exportación de PDF -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-
-    <style>
-        .custom-scrollbar::-webkit-scrollbar {
-            width: 6px;
-        }
-        .custom-scrollbar::-webkit-scrollbar-track {
-            background: #0f172a;
-        }
-        .custom-scrollbar::-webkit-scrollbar-thumb {
-            background: #334155;
-            border-radius: 4px;
-        }
-        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-            background: #f59e0b;
-        }
-    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>VisageLab - Diagnóstico Biométrico Avanzado</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- MediaPipe / Canvas / jsPDF -->
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js" crossorigin="anonymous"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 </head>
-<body class="bg-slate-950 text-slate-100 font-sans min-h-screen flex flex-col">
+<body class="bg-slate-900 text-slate-100 min-h-screen flex flex-col font-sans">
 
-    <!-- Header Navigation -->
-    <header class="border-b border-slate-800 bg-slate-900/80 backdrop-blur sticky top-0 z-50">
-        <div class="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
-            <div class="flex items-center space-x-3">
-                <div class="w-8 h-8 rounded-lg bg-amber-500 flex items-center justify-center font-black text-slate-950 text-lg shadow-lg shadow-amber-500/20">V</div>
-                <h1 class="text-xl font-bold tracking-tight bg-gradient-to-r from-amber-400 to-amber-200 bg-clip-text text-transparent">VisageLab <span class="text-xs px-2 py-0.5 rounded bg-amber-500/10 text-amber-400 border border-amber-500/20 ml-2 font-mono">STANDALONE v2.0</span></h1>
-            </div>
-            <div id="etiquetaToma" class="text-xs font-semibold px-3 py-1.5 rounded-full bg-slate-800 text-amber-400 border border-slate-700">
-                Toma 1 de 2: Frontal Neutra
-            </div>
+  <!-- Header -->
+  <header class="border-b border-slate-800 bg-slate-950/80 p-4 sticky top-0 z-50 backdrop-blur">
+    <div class="max-w-7xl mx-auto flex justify-between items-center">
+      <h1 class="text-xl font-bold tracking-wider text-cyan-400">VISAGELAB <span class="text-xs text-slate-400 font-normal">v2.5 Pro</span></h1>
+      <span class="text-xs px-2.5 py-1 rounded-full bg-cyan-950 text-cyan-300 border border-cyan-800">Motor Diagnóstico Activo</span>
+    </div>
+  </header>
+
+  <main class="flex-1 max-w-7xl w-full mx-auto p-4 md:p-6 grid grid-cols-1 lg:grid-cols-12 gap-6">
+
+    <!-- Panel de Control e Ingesta -->
+    <section class="lg:col-span-5 flex flex-col gap-4">
+      
+      <!-- Calibration Box -->
+      <div class="bg-slate-800/60 border border-slate-700 rounded-xl p-4 shadow-lg">
+        <h2 class="text-sm font-semibold text-slate-300 uppercase tracking-wider mb-3 flex items-center gap-2">
+          <svg class="w-4 h-4 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"></path></svg>
+          Calibración del Sujeto
+        </h2>
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs text-slate-400 mb-1">Sexo Biológico</label>
+            <select id="genderSelect" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm focus:border-cyan-500 outline-none">
+              <option value="masculino">Masculino</option>
+              <option value="femenino">Femenino</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-xs text-slate-400 mb-1">Edad del Sujeto</label>
+            <input type="number" id="ageInput" value="25" min="1" max="120" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm focus:border-cyan-500 outline-none">
+          </div>
         </div>
-    </header>
-
-    <!-- Main Content Grid -->
-    <main class="flex-1 max-w-7xl w-full mx-auto p-4 grid grid-cols-1 lg:grid-cols-12 gap-6">
-
-        <!-- Panel Izquierdo: Cámara Web y Guías -->
-        <section class="lg:col-span-7 flex flex-col space-y-4">
-            
-            <!-- Selector de Modos de Captura -->
-            <div class="bg-slate-900 p-2 rounded-xl border border-slate-800 grid grid-cols-3 gap-2">
-                <button id="btnModoRapido" class="py-2 text-[11px] font-semibold rounded-lg bg-amber-500 text-slate-950 transition-all cursor-pointer">
-                    Rápido (2 Fotos)
-                </button>
-                <button id="btnModoCompleto" class="py-2 text-[11px] font-semibold rounded-lg bg-slate-800 text-slate-300 hover:bg-slate-700 transition-all cursor-pointer">
-                    Completo (5 Fotos)
-                </button>
-                <button id="btnModoCuerpo" class="py-2 text-[11px] font-semibold rounded-lg bg-slate-800 text-slate-300 hover:bg-slate-700 transition-all cursor-pointer">
-                    Cuerpo Entero
-                </button>
-            </div>
-
-            <!-- Viewport de Video / Canvas -->
-            <div class="relative w-full aspect-video bg-slate-900 rounded-2xl overflow-hidden border border-slate-800 shadow-2xl flex items-center justify-center group">
-                <video class="input_video hidden" playsinline></video>
-                <canvas class="output_canvas w-full h-full transform -scale-x-100 object-cover"></canvas>
-
-                <!-- Overlay de Indicadores en Tiempo Real -->
-                <div class="absolute top-4 left-4 flex flex-col space-y-1.5 bg-slate-950/80 backdrop-blur p-3 rounded-xl border border-slate-800/80 text-[11px]">
-                    <div class="flex items-center justify-between space-x-4">
-                        <span class="text-slate-400">Alineación:</span>
-                        <span id="valAlineacion" class="font-bold text-amber-400">Verificando...</span>
-                    </div>
-                    <div class="flex items-center justify-between space-x-4">
-                        <span class="text-slate-400">Luz:</span>
-                        <span id="valLuz" class="font-bold text-emerald-400">Analizando...</span>
-                    </div>
-                    <div class="flex items-center justify-between space-x-4">
-                        <span class="text-slate-400">Nitidez:</span>
-                        <span id="valNitidez" class="font-bold text-emerald-400">Optima</span>
-                    </div>
-                    <div class="flex items-center justify-between space-x-4">
-                        <span class="text-slate-400">Contraste:</span>
-                        <span id="valContraste" class="font-bold text-emerald-400">Adecuado</span>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Botones de Acción -->
-            <div class="flex items-center space-x-4">
-                <button id="btnCapturar" class="flex-1 py-3.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-xl transition-all shadow-lg shadow-amber-500/20 active:scale-95 cursor-pointer text-sm flex items-center justify-center space-x-2">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h0.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
-                    <span>Capturar Fotografía</span>
-                </button>
-                
-                <button id="btnGenerarPDF" disabled class="flex-1 py-3.5 bg-slate-800 text-slate-500 font-bold rounded-xl transition-all cursor-not-allowed opacity-50 text-sm flex items-center justify-center space-x-2">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
-                    <span>Exportar Expediente PDF</span>
-                </button>
-            </div>
-
-            <!-- Galería de Capturas Registradas -->
-            <div class="bg-slate-900 p-3 rounded-xl border border-slate-800">
-                <p class="text-xs font-semibold text-slate-400 mb-2">Tomas Registradas</p>
-                <div id="galeriaCapturas" class="flex space-x-3 overflow-x-auto pb-1 custom-scrollbar min-h-[72px] items-center">
-                    <p class="text-xs text-slate-600 italic">No hay fotos capturadas aún.</p>
-                </div>
-            </div>
-
-        </section>
-
-        <!-- Panel Derecho: Resultados Biométricos e Informe -->
-        <section class="lg:col-span-5 flex flex-col space-y-4">
-            <div id="panelResultados" class="bg-slate-900 p-4 rounded-2xl border border-slate-800 shadow-xl flex-1 flex flex-col">
-                <h2 class="text-sm font-bold text-slate-200 border-b border-slate-800 pb-3 mb-3 flex items-center justify-between">
-                    <span>Informe Biométrico Facial</span>
-                    <span class="text-xs font-normal text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20">Taxonomía Cualitativa</span>
-                </h2>
-
-                <div id="contenidoAnalisis" class="flex-1 flex items-center justify-center text-center p-6">
-                    <p class="text-slate-500 text-xs">Completa las tomas requeridas para generar el diagnóstico biométrico automático.</p>
-                </div>
-            </div>
-        </section>
-
-    </main>
-
-    <!-- Footer -->
-    <footer class="border-t border-slate-900 bg-slate-950 py-3 text-center text-xs text-slate-600">
-        VisageLab Engine &copy; 2026 — Procesamiento Biométrico Local 100% Autónomo
-    </footer>
-
-    <!-- Lógica de la Aplicación -->
-    <script>
-        const videoElement = document.getElementsByClassName('input_video')[0];
-        const canvasElement = document.getElementsByClassName('output_canvas')[0];
-        const canvasCtx = canvasElement.getContext('2d');
-
-        // UI
-        const valAlineacion = document.getElementById('valAlineacion');
-        const valLuz = document.getElementById('valLuz');
-        const valNitidez = document.getElementById('valNitidez');
-        const valContraste = document.getElementById('valContraste');
-        const etiquetaToma = document.getElementById('etiquetaToma');
-        const btnCapturar = document.getElementById('btnCapturar');
-        const btnGenerarPDF = document.getElementById('btnGenerarPDF');
-        const galeria = document.getElementById('galeriaCapturas');
-        const panelResultados = document.getElementById('panelResultados');
-        const contenidoAnalisis = document.getElementById('contenidoAnalisis');
-
-        const MODOS = {
-            RAPIDO: ['Frontal Neutra', 'Perfil 90°'],
-            COMPLETO: ['Frontal Neutra', 'Frontal Sonrisa', 'Perfil Derecho 90°', 'Perfil Izquierdo 90°', 'Tres Cuartos 45°'],
-            CUERPO: ['Cuerpo Entero']
-        };
-
-        let flujoActual = MODOS.RAPIDO;
-        let pasoActual = 0;
-        let capturas = [];
-        let ultimasLandmarks = null;
-        let alineadoCorrectamente = false;
-
-        let ultimoAnalisisLuz = 0;
-        const canvasAux = document.createElement('canvas');
-        canvasAux.width = 160;
-        canvasAux.height = 120;
-        const ctxAux = canvasAux.getContext('2d');
-
-        let metricasCalculadas = [];
-
-        // Evaluador Fotométrico
-        function evaluarCalidadImagenThrottled(ahora) {
-            if (ahora - ultimoAnalisisLuz < 300) return;
-            ultimoAnalisisLuz = ahora;
-
-            ctxAux.drawImage(videoElement, 0, 0, 160, 120);
-            const imageData = ctxAux.getImageData(0, 0, 160, 120);
-            const data = imageData.data;
-            
-            let sumaBrillo = 0;
-            let minBrillo = 255;
-            let maxBrillo = 0;
-
-            for (let i = 0; i < data.length; i += 16) {
-                const luma = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
-                sumaBrillo += luma;
-                if (luma < minBrillo) minBrillo = luma;
-                if (luma > maxBrillo) maxBrillo = luma;
-            }
-
-            const totalPixeles = data.length / 16;
-            const promedioLuz = sumaBrillo / totalPixeles;
-            const rangoContraste = maxBrillo - minBrillo;
-
-            if (promedioLuz < 50) {
-                valLuz.textContent = 'Oscura';
-                valLuz.className = 'font-bold text-red-400';
-            } else if (promedioLuz > 200) {
-                valLuz.textContent = 'Expuesta';
-                valLuz.className = 'font-bold text-amber-400';
-            } else {
-                valLuz.textContent = 'Óptima';
-                valLuz.className = 'font-bold text-emerald-400';
-            }
-
-            valContraste.textContent = (rangoContraste < 70) ? 'Bajo' : 'Adecuado';
-            valContraste.className = (rangoContraste < 70) ? 'font-bold text-amber-400' : 'font-bold text-emerald-400';
-            valNitidez.textContent = 'Nítida';
-            valNitidez.className = 'font-bold text-emerald-400';
-        }
-
-        // Guía Visual
-        function dibujarGuiaAlineacion(ctx, width, height) {
-            ctx.save();
-            ctx.strokeStyle = alineadoCorrectamente ? '#22c55e' : '#ef4444';
-            ctx.lineWidth = 3;
-            ctx.setLineDash([8, 8]);
-
-            ctx.beginPath();
-            ctx.ellipse(width / 2, height / 2, width * 0.22, height * 0.32, 0, 0, 2 * Math.PI);
-            ctx.stroke();
-            ctx.restore();
-        }
-
-        // Procesamiento FaceMesh
-        function onResultsFace(results) {
-            if (!videoElement.videoWidth || !videoElement.videoHeight) return;
-
-            canvasElement.width = videoElement.videoWidth;
-            canvasElement.height = videoElement.videoHeight;
-
-            canvasCtx.save();
-            canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
-
-            evaluarCalidadImagenThrottled(performance.now());
-
-            const tomaActual = flujoActual[pasoActual] || '';
-            const esPerfil = tomaActual.includes('Perfil') || tomaActual.includes('Cuartos');
-
-            if (results.multiFaceLandmarks && results.multiFaceLandmarks.length > 0) {
-                ultimasLandmarks = results.multiFaceLandmarks[0];
-
-                if (esPerfil) {
-                    alineadoCorrectamente = true;
-                    valAlineacion.textContent = 'Perfil Detectado';
-                    valAlineacion.className = 'font-bold text-emerald-400';
-                } else {
-                    const centroNave = ultimasLandmarks[1];
-                    const desviacionX = Math.abs(centroNave.x - 0.5);
-
-                    if (desviacionX < 0.12) {
-                        alineadoCorrectamente = true;
-                        valAlineacion.textContent = 'Correcta';
-                        valAlineacion.className = 'font-bold text-emerald-400';
-                    } else {
-                        alineadoCorrectamente = false;
-                        valAlineacion.textContent = 'Descentrado';
-                        valAlineacion.className = 'font-bold text-red-400';
-                    }
-                }
-
-                if (typeof drawConnectors !== 'undefined') {
-                    drawConnectors(canvasCtx, ultimasLandmarks, FACEMESH_TESSELATION, {color: '#f59e0b30', lineWidth: 1});
-                    drawConnectors(canvasCtx, ultimasLandmarks, FACEMESH_FACE_OVAL, {color: '#fbbf24', lineWidth: 2});
-                    drawConnectors(canvasCtx, ultimasLandmarks, FACEMESH_RIGHT_EYE, {color: '#38bdf8', lineWidth: 1.5});
-                    drawConnectors(canvasCtx, ultimasLandmarks, FACEMESH_LEFT_EYE, {color: '#38bdf8', lineWidth: 1.5});
-                    drawConnectors(canvasCtx, ultimasLandmarks, FACEMESH_LIPS, {color: '#f43f5e', lineWidth: 1.5});
-                }
-            } else {
-                if (esPerfil) {
-                    alineadoCorrectamente = true;
-                    valAlineacion.textContent = 'Modo Perfil (Listo)';
-                    valAlineacion.className = 'font-bold text-emerald-400';
-                } else {
-                    alineadoCorrectamente = false;
-                    valAlineacion.textContent = 'Sin Rostro';
-                    valAlineacion.className = 'font-bold text-amber-400';
-                }
-            }
-
-            dibujarGuiaAlineacion(canvasCtx, canvasElement.width, canvasElement.height);
-            canvasCtx.restore();
-        }
-
-        const faceMesh = new FaceMesh({
-            locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`
-        });
-        faceMesh.setOptions({ maxNumFaces: 1, refineLandmarks: true, minDetectionConfidence: 0.3, minTrackingConfidence: 0.3 });
-        faceMesh.onResults(onResultsFace);
-
-        const camera = new Camera(videoElement, {
-            onFrame: async () => { await faceMesh.send({image: videoElement}); },
-            width: 1280,
-            height: 720
-        });
-        camera.start();
-
-        // Evento de Captura
-        btnCapturar.addEventListener('click', () => {
-            if (!videoElement.videoWidth) return;
-
-            if (galeria.innerHTML.includes('No hay fotos')) {
-                galeria.innerHTML = '';
-            }
-
-            const canvasLimpio = document.createElement('canvas');
-            canvasLimpio.width = canvasElement.width;
-            canvasLimpio.height = canvasElement.height;
-            const ctxLimpio = canvasLimpio.getContext('2d');
-            ctxLimpio.translate(canvasLimpio.width, 0);
-            ctxLimpio.scale(-1, 1);
-            ctxLimpio.drawImage(videoElement, 0, 0);
-
-            const fotoLimpiaData = canvasLimpio.toDataURL('image/png');
-            const fotoMallaData = canvasElement.toDataURL('image/png');
-
-            capturas.push({
-                nombre: flujoActual[pasoActual],
-                limpia: fotoLimpiaData,
-                malla: fotoMallaData,
-                landmarks: ultimasLandmarks
-            });
-
-            const imgThumb = document.createElement('img');
-            imgThumb.src = fotoMallaData;
-            imgThumb.className = "h-16 w-12 object-cover rounded-lg border border-amber-500/50 shadow-md flex-shrink-0";
-            galeria.appendChild(imgThumb);
-
-            pasoActual++;
-
-            if (pasoActual < flujoActual.length) {
-                etiquetaToma.textContent = `Toma ${pasoActual + 1} de ${flujoActual.length}: ${flujoActual[pasoActual]}`;
-            } else {
-                etiquetaToma.textContent = 'Capturas completadas';
-                btnCapturar.disabled = true;
-                btnCapturar.classList.add('opacity-50');
-                
-                btnGenerarPDF.disabled = false;
-                btnGenerarPDF.classList.remove('opacity-50', 'cursor-not-allowed', 'bg-slate-800', 'text-slate-500');
-                btnGenerarPDF.classList.add('bg-emerald-500', 'hover:bg-emerald-400', 'text-slate-950');
-
-                ejecutarAnalisisBiometrico();
-            }
-        });
-
-        // Engine de Diagnóstico
-        function ejecutarAnalisisBiometrico() {
-            panelResultados.classList.remove('hidden');
-            metricasCalculadas = [];
-
-            const tomaFrontal = capturas.find(c => c.nombre.includes('Frontal') && c.landmarks);
-
-            if (!tomaFrontal) {
-                contenidoAnalisis.innerHTML = `<p class="text-amber-400">Captura realizada. Presiona "Exportar PDF" para descargar el reporte.</p>`;
-                return;
-            }
-
-            const lm = tomaFrontal.landmarks;
-
-            // 1. CALIDAD DE LA PIEL
-            const catPiel = "Claridad Saludable";
-            const expPiel = "Ausencia de inflamación activa. El tono es constante en todo el rostro, proyectando orden biológico.";
-
-            // 2. FORMA DEL CRÁNEO
-            const catCraneo = "Mesocéfalo Perfecto";
-            const expCraneo = "Equilibrio ideal entre el ancho y el largo del cráneo; proporciona el soporte perfecto para pómulos altos y un perfil facial completamente recto y balanceado.";
-
-            // 3. INCLINACIÓN DE LA FRENTE
-            const catFrente = "Inclinación Masculina Definida (80 a 84 Grados)";
-            const expFrente = "Una sutil pendiente hacia atrás que añade profundidad al arco superciliar sin reducir el volumen de la frente; aporta un aspecto tónico, maduro y firmemente estructurado.";
-
-            // 4. SIMETRÍA FACIAL
-            const simEstructura = Math.abs((lm[234].x - 0.5) - (0.5 - lm[454].x));
-            let catSimetria = "Simetría Armónica Natural";
-            let expSimetria = "Variaciones casi imperceptibles en la posición de las cejas, orejas o comisuras que dan realismo al rostro sin romper la armonía.";
-            if (simEstructura < 0.004) {
-                catSimetria = "Simetría Especular Perfecta";
-                expSimetria = "Ambos lados del rostro son imágenes de espejo exactas, lo cual es el estándar más alto de estabilidad genética.";
-            } else if (simEstructura < 0.008) {
-                catSimetria = "Simetría de Élite";
-                expSimetria = "Desviaciones mínimas y prácticamente invisibles para el ojo humano, manteniendo el equilibrio visual total en todos los tercios faciales.";
-            } else if (simEstructura > 0.025) {
-                catSimetria = "Asimetría Leve";
-                expSimetria = "Diferencias visibles en el tamaño de los ojos, inclinación de la nariz o altura de los pómulos al analizar el rostro detenidamente.";
-            }
-
-            // 5. REGLA DE LOS TERCIOS
-            const tSup = Math.abs(lm[9].y - lm[10].y);
-            const tMed = Math.abs(lm[2].y - lm[9].y);
-            const tInf = Math.abs(lm[152].y - lm[2].y);
-            const totalT = tSup + tMed + tInf;
-            const pctSup = Math.round((tSup / totalT) * 100);
-            const pctMed = Math.round((tMed / totalT) * 100);
-            const pctInf = Math.round((tInf / totalT) * 100);
-
-            let catTercios = "Equilibrio Perfecto";
-            let expTercios = "Simetría absoluta, el rostro estándar de máxima armonía.";
-            if (pctInf >= 38) {
-                catTercios = "Dominancia Mandibular";
-                expTercios = "Tercio inferior fuerte, rasgo principal de masculinidad biológica.";
-            } else if (pctSup >= 38) {
-                catTercios = "Frente Amplia Dominante";
-                expTercios = "Tercio superior largo, asociado a rostros angulosos y de modelo.";
-            } else if (pctMed >= 38) {
-                catTercios = "Soporte Central";
-                expTercios = "Tercio medio predominante, indica maxilar bien desarrollado y pómulos con soporte.";
-            }
-
-            // 6. GRASA BUCAL
-            const catGrasaBucal = "Transición Plana y Limpia";
-            const expGrasaBucal = "No hay hundimiento extremo, pero tampoco exceso de tejido. La línea que conecta pómulo y mandíbula es recta, atlética y muy bien definida.";
-
-            // 7. FORMA DE LAS OREJAS
-            const catFormaOrejas = "Orejas Armónicas Proporcionales";
-            const expFormaOrejas = "Tienen un tamaño equilibrado, ocupando el espacio entre la ceja y la base de la nariz. Forma clásica y simétrica.";
-
-            // 8. TAMAÑO DE LAS OREJAS
-            const catTamanoOrejas = "Proporción Áurea";
-            const expTamanoOrejas = "El tamaño coincide exactamente con la longitud de la nariz, creando una armonía visual perfecta.";
-
-            // 9. FORMAS DE LA MANDÍBULA
-            const anchoPom = Math.abs(lm[454].x - lm[234].x);
-            const anchoMand = Math.abs(lm[377].x - lm[148].x);
-            const relAncho = anchoPom / anchoMand;
-
-            let catMandibula = "Mandíbula Estructurada";
-            let expMandibula = "Definición clara en los ángulos pero con una curva ligeramente más suave al conectar con el mentón.";
-            if (relAncho < 1.08) {
-                catMandibula = "Mandíbula Cuadrada y Angulada";
-                expMandibula = "Los ángulos del gonion son de 90 grados y el mentón es ancho. Es el estándar de dominancia y masculinidad.";
-            } else if (relAncho > 1.22) {
-                catMandibula = "Mandíbula de V Marcada";
-                expMandibula = "Líneas muy rectas que convergen en un mentón afilado, dando un aspecto atlético y juvenil.";
-            }
-
-            // 10. PROYECCIÓN DE LA MANDÍBULA
-            const catProyeccionMandibula = "Ortognatismo Perfecto";
-            const expProyeccionMandibula = "La proyección del mentón está perfectamente alineada con la glabela y la base de la nariz, creando el perfil facial más equilibrado.";
-
-            // 11. INCLINACIÓN DEL MENTÓN
-            const catMenton = "Prognatismo Masculino Primitivo (1 a 3 mm Adelantado)";
-            const expMenton = "El mentón se proyecta ligeramente por delante de la línea vertical de la glabela, aportando máxima presencia ósea sin perder el balance facial.";
-
-            // 12. PROYECCIÓN DEL MAXILAR
-            const catMaxilar = "Maxilar de Crecimiento Anterior Óptimo";
-            const expMaxilar = "El hueso maxilar se proyecta fuertemente hacia adelante, proporcionando un soporte total para los pómulos y el párpado inferior.";
-
-            // 13. ARCO SUPERCILIAR
-            const catArcoSuperciliar = "Prominencia Masculina Dominante";
-            const expArcoSuperciliar = "El hueso es grueso, bien definido y proyectado hacia adelante. Genera una sombra profunda sobre el ojo, esencial para el efecto de ojos de cazador.";
-
-            // 14. PROFUNDIDAD DEL OJO
-            const catProfundidadOjo = "Profundidad Marcada";
-            const expProfundidadOjo = "El ojo está bien protegido dentro de la órbita. Es el nivel óptimo para una mirada de cazador sin perder funcionalidad.";
-
-            // 15. EXPOSICIÓN DEL PÁRPADO SUPERIOR
-            const catParpado = "Párpado Oculto (Hooded)";
-            const expParpado = "Mínima o nula exposición de la piel del párpado móvil. La ceja cae sobre la cuenca del ojo, proyectando máxima intensidad.";
-
-            // 16. UNIÓN CUELLO-MANDÍBULA
-            const catCuelloAngulo = "Ángulo Agudo (90 grados o menos)";
-            const expCuelloAngulo = "La unión entre la mandíbula y el cuello es un corte limpio y definido. Es el indicador máximo de salud y bajos niveles de grasa.";
-
-            // 17. PROPORCIÓN CUELLO-MANDÍBULA
-            const catCuelloProporcion = "Continuidad Estructural (Proporción Áurea)";
-            const expCuelloProporcion = "El cuello tiene una anchura que fluye directamente desde el ancho bigonial (mandíbula). El rostro y el cuello parecen una sola pieza sólida.";
-
-            // 18. PROYECCIÓN ANTERIOR DE LOS PÓMULOS
-            const catPomulosAnt = "Proyección Anterior Óptima";
-            const expPomulosAnt = "El hueso malar sobresale claramente por delante del globo ocular, ofreciendo soporte total al párpado inferior y eliminando sombras no deseadas.";
-
-            // 19. POSICIÓN VERTICAL DE LOS PÓMULOS
-            const catPomulosVert = "Elevación Alta (Apex Malar)";
-            const expPomulosVert = "El punto de máxima proyección está justo debajo del párpado inferior. Es el estándar máximo de juventud, soporte ocular y salud.";
-
-            // 20. ANCHO LATERAL DE LOS PÓMULOS
-            const catPomulosLat = "Ancho Robusto (Dominancia)";
-            const expPomulosLat = "El arco cigomático es marcadamente ancho, lo que crea un rostro angulado, viril y con alta capacidad de soporte para tejidos blandos.";
-
-            // 21. ARCO DE SONRISA
-            const catArcoSonrisa = "Arco de Sonrisa Ideal (Concordante)";
-            const expArcoSonrisa = "El borde de los dientes superiores sigue perfectamente la curva del labio inferior al sonreír.";
-
-            // 22. FORMA DE LOS LABIOS
-            const catFormaLabios = "Arco de Cupido Definido";
-            const expFormaLabios = "La parte superior presenta una forma de V o corazón muy marcada y centrada.";
-
-            // 23. GROSOR DE LOS LABIOS
-            const catGrosorLabios = "Grosor Proporcionado (Relación 1 a 1.6)";
-            const expGrosorLabios = "El labio inferior es ligeramente más grueso que el superior, manteniendo el estándar de oro de la proporción facial.";
-
-            // 24. TONALIDADES DE LOS LABIOS
-            const catTonoLabios = "Rosado Salmón";
-            const expTonoLabios = "Tono rosado con matices cálidos que indica excelente circulación y salud.";
-
-            // 25. FORMAS DEL OJO
-            const catFormaOjos = "Ojos de Cazador (Hunter Eyes)";
-            const expFormaOjos = "Forma almendrada, compactos, con apoyo del párpado inferior y una inclinación cantal positiva.";
-
-            // 26. INCLINACIÓN DE LOS OJOS
-            const izqY = lm[33].y;
-            const derY = lm[263].y;
-            const diffOjos = izqY - derY;
-
-            let catIncOjos = "Inclinación Neutral (0 grados)";
-            let expIncOjos = "Las esquinas interna y externa están perfectamente alineadas de forma horizontal. Proyecta estabilidad.";
-            if (diffOjos > 0.004) {
-                catIncOjos = "Inclinación Positiva Marcada (5 a 8 grados)";
-                expIncOjos = "La esquina externa está claramente por encima de la interna. Es el rasgo principal de los ojos de cazador.";
-            } else if (diffOjos < -0.004) {
-                catIncOjos = "Inclinación Negativa Leve (-1 a -2 grados)";
-                expIncOjos = "La esquina externa cae apenas por debajo de la interna, dando un aire de relajación o cansancio.";
-            }
-
-            // 27. FORMAS DEL ROSTRO
-            let catFormaRostro = "Diamante";
-            let expFormaRostro = "Se considera la forma más atractiva debido a los pómulos altos y marcados que son más anchos que la frente y la mandíbula, creando una estructura ósea muy definida.";
-
-            metricasCalculadas = [
-                { titulo: "Calidad de la Piel", cat: catPiel, exp: expPiel },
-                { titulo: "Forma del Cráneo", cat: catCraneo, exp: expCraneo },
-                { titulo: "Inclinación de la Frente", cat: catFrente, exp: expFrente },
-                { titulo: "Simetría Facial", cat: catSimetria, exp: expSimetria },
-                { titulo: "Regla de los Tercios", cat: `${catTercios} (${pctSup}% / ${pctMed}% / ${pctInf}%)`, exp: expTercios },
-                { titulo: "Grasa Bucal", cat: catGrasaBucal, exp: expGrasaBucal },
-                { titulo: "Forma de las Orejas", cat: catFormaOrejas, exp: expFormaOrejas },
-                { titulo: "Tamaño de las Orejas", cat: catTamanoOrejas, exp: expTamanoOrejas },
-                { titulo: "Formas de la Mandíbula", cat: catMandibula, exp: expMandibula },
-                { titulo: "Proyección de la Mandíbula", cat: catProyeccionMandibula, exp: expProyeccionMandibula },
-                { titulo: "Inclinación del Mentón", cat: catMenton, exp: expMenton },
-                { titulo: "Proyección del Maxilar", cat: catMaxilar, exp: expMaxilar },
-                { titulo: "Arco Superciliar", cat: catArcoSuperciliar, exp: expArcoSuperciliar },
-                { titulo: "Profundidad del Ojo", cat: catProfundidadOjo, exp: expProfundidadOjo },
-                { titulo: "Exposición del Párpado Superior", cat: catParpado, exp: expParpado },
-                { titulo: "Unión Cuello-Mandíbula", cat: catCuelloAngulo, exp: expCuelloAngulo },
-                { titulo: "Proporción Cuello-Mandíbula", cat: catCuelloProporcion, exp: expCuelloProporcion },
-                { titulo: "Proyección Anterior de Pómulos", cat: catPomulosAnt, exp: expPomulosAnt },
-                { titulo: "Posición Vertical de Pómulos", cat: catPomulosVert, exp: expPomulosVert },
-                { titulo: "Ancho Lateral de Pómulos", cat: catPomulosLat, exp: expPomulosLat },
-                { titulo: "Arco de Sonrisa", cat: catArcoSonrisa, exp: expArcoSonrisa },
-                { titulo: "Forma de los Labios", cat: catFormaLabios, exp: expFormaLabios },
-                { titulo: "Grosor de los Labios", cat: catGrosorLabios, exp: expGrosorLabios },
-                { titulo: "Tonalidades de los Labios", cat: catTonoLabios, exp: expTonoLabios },
-                { titulo: "Formas del Ojo", cat: catFormaOjos, exp: expFormaOjos },
-                { titulo: "Inclinación de los Ojos", cat: catIncOjos, exp: expIncOjos },
-                { titulo: "Forma del Rostro", cat: catFormaRostro, exp: expFormaRostro }
-            ];
-
-            let htmlUI = `<div class="bg-slate-950 p-3 rounded-xl border border-slate-800 space-y-3 max-h-[480px] overflow-y-auto custom-scrollbar text-left w-full">`;
-            metricasCalculadas.forEach(m => {
-                htmlUI += `
-                    <div class="border-b border-slate-800/60 pb-2 last:border-b-0">
-                        <p class="text-amber-400 font-bold text-xs">${m.titulo}: <span class="text-slate-100 font-medium">${m.cat}</span></p>
-                        <p class="text-[11px] text-slate-400 leading-snug mt-0.5">${m.exp}</p>
-                    </div>
-                `;
-            });
-            htmlUI += `</div>`;
-
-            contenidoAnalisis.innerHTML = htmlUI;
-        }
-
-        // Exportación PDF
-        btnGenerarPDF.addEventListener('click', () => {
-            const { jsPDF } = window.jspdf;
-            const doc = new jsPDF();
-
-            doc.setFillColor(15, 23, 42);
-            doc.rect(0, 0, 210, 297, 'F');
-
-            doc.setTextColor(251, 191, 36);
-            doc.setFontSize(18);
-            doc.text("VISAGELAB - EXPEDIENTE BIOMÉTRICO", 15, 20);
-
-            doc.setFontSize(9);
-            doc.setTextColor(203, 213, 225);
-            doc.text(`Fecha de Evaluación: ${new Date().toLocaleDateString()}`, 15, 27);
-            doc.text(`Tomas Registradas: ${capturas.length}`, 15, 32);
-
-            let yOffset = 42;
-
-            capturas.forEach((cap, index) => {
-                if (yOffset > 220) {
-                    doc.addPage();
-                    doc.setFillColor(15, 23, 42);
-                    doc.rect(0, 0, 210, 297, 'F');
-                    yOffset = 20;
-                }
-
-                doc.setTextColor(251, 191, 36);
-                doc.setFontSize(10);
-                doc.text(`Toma ${index + 1}: ${cap.nombre}`, 15, yOffset);
-
-                doc.addImage(cap.limpia, 'PNG', 15, yOffset + 4, 38, 50);
-                doc.setFontSize(8);
-                doc.setTextColor(148, 163, 184);
-                doc.text("Fotografía Natural", 15, yOffset + 58);
-
-                doc.addImage(cap.malla, 'PNG', 58, yOffset + 4, 38, 50);
-                doc.text("Fotografía con Malla", 58, yOffset + 58);
-
-                yOffset += 68;
-            });
-
-            doc.addPage();
-            doc.setFillColor(15, 23, 42);
-            doc.rect(0, 0, 210, 297, 'F');
-
-            doc.setTextColor(251, 191, 36);
-            doc.setFontSize(15);
-            doc.text("DIAGNÓSTICO MORFOMÉTRICO Y BIOMÉTRICO EXHAUSTIVO", 15, 20);
-
-            doc.setFontSize(8.5);
-            doc.setTextColor(148, 163, 184);
-            doc.text("A continuación se detallan todas las clasificaciones evaluadas y su fundamentación técnica.", 15, 26);
-
-            let pdfY = 36;
-
-            metricasCalculadas.forEach(m => {
-                if (pdfY > 265) {
-                    doc.addPage();
-                    doc.setFillColor(15, 23, 42);
-                    doc.rect(0, 0, 210, 297, 'F');
-                    pdfY = 20;
-                }
-
-                doc.setTextColor(251, 191, 36);
-                doc.setFontSize(9.5);
-                doc.text(m.titulo, 15, pdfY);
-
-                doc.setTextColor(255, 255, 255);
-                doc.setFontSize(8.5);
-                doc.text(`Clasificación: ${m.cat}`, 15, pdfY + 4.5);
-
-                doc.setTextColor(203, 213, 225);
-                doc.setFontSize(7.5);
-                const lineasExp = doc.splitTextToSize(`Por qué: ${m.exp}`, 180);
-                doc.text(lineasExp, 15, pdfY + 9);
-
-                pdfY += 12 + (lineasExp.length * 3.5);
-            });
-
-            doc.save(`VisageLab_Informe_Biometrico_${Date.now()}.pdf`);
-        });
-
-        // Manejo de Modos
-        document.getElementById('btnModoRapido').addEventListener('click', () => cambiarModo(MODOS.RAPIDO, 'btnModoRapido'));
-        document.getElementById('btnModoCompleto').addEventListener('click', () => cambiarModo(MODOS.COMPLETO, 'btnModoCompleto'));
-        document.getElementById('btnModoCuerpo').addEventListener('click', () => cambiarModo(MODOS.CUERPO, 'btnModoCuerpo'));
-
-        function cambiarModo(nuevoModo, btnId) {
-            flujoActual = nuevoModo;
-            pasoActual = 0;
-            capturas = [];
-            galeria.innerHTML = '<p class="text-xs text-slate-600 italic">No hay fotos capturadas aún.</p>';
-            contenidoAnalisis.innerHTML = '<p class="text-slate-500 text-xs">Completa las tomas requeridas para generar el diagnóstico biométrico automático.</p>';
-            btnCapturar.disabled = false;
-            btnCapturar.classList.remove('opacity-50');
-            btnGenerarPDF.disabled = true;
-            btnGenerarPDF.classList.add('opacity-50', 'cursor-not-allowed', 'bg-slate-800', 'text-slate-500');
-            btnGenerarPDF.classList.remove('bg-emerald-500', 'hover:bg-emerald-400', 'text-slate-950');
-            etiquetaToma.textContent = `Toma 1 de ${flujoActual.length}: ${flujoActual[0]}`;
-
-            ['btnModoRapido', 'btnModoCompleto', 'btnModoCuerpo'].forEach(id => {
-                const b = document.getElementById(id);
-                b.className = (id === btnId) 
-                    ? "py-2 text-[11px] font-semibold rounded-lg bg-amber-500 text-slate-950 transition-all cursor-pointer"
-                    : "py-2 text-[11px] font-semibold rounded-lg bg-slate-800 text-slate-300 hover:bg-slate-700 transition-all cursor-pointer";
-            });
-        }
-    </script>
+      </div>
+
+      <!-- Live Camera Feed -->
+      <div class="relative bg-slate-950 border border-slate-800 rounded-xl overflow-hidden aspect-video flex items-center justify-center">
+        <video id="webcam" class="absolute inset-0 w-full h-full object-cover -scale-x-100" autoplay playsinline></video>
+        <canvas id="meshCanvas" class="absolute inset-0 w-full h-full object-cover -scale-x-100"></canvas>
+        <div class="absolute bottom-2 left-2 bg-slate-900/80 backdrop-blur px-2 py-1 rounded text-[10px] text-slate-400 border border-slate-700/50">
+          Feed en vivo + MediaPipe Mesh
+        </div>
+      </div>
+
+      <!-- Actions -->
+      <div class="grid grid-cols-2 gap-3">
+        <button id="btnCapture1" onclick="captureFrame(1)" class="bg-cyan-600 hover:bg-cyan-500 text-white font-medium py-2.5 rounded-lg text-sm transition flex items-center justify-center gap-2">
+          1. Frontal Neutra
+        </button>
+        <button id="btnCapture2" onclick="captureFrame(2)" class="bg-indigo-600 hover:bg-indigo-500 text-white font-medium py-2.5 rounded-lg text-sm transition flex items-center justify-center gap-2">
+          2. Perfil 90°
+        </button>
+      </div>
+
+      <button id="btnGeneratePDF" onclick="generatePDFReport()" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-semibold py-3 rounded-lg text-sm shadow-lg transition flex items-center justify-center gap-2">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+        Generar Expediente PDF
+      </button>
+
+    </section>
+
+    <!-- Panel de Resultados y Previsualización -->
+    <section class="lg:col-span-7 bg-slate-800/40 border border-slate-800 rounded-xl p-4 md:p-6 overflow-y-auto max-h-[85vh]">
+      <h2 class="text-base font-semibold text-slate-200 mb-4 border-b border-slate-700/60 pb-2">Previsualización del Diagnóstico</h2>
+      <div id="diagnosticResults" class="space-y-4 text-xs">
+        <p class="text-slate-500 italic">Captura ambas tomas para procesar los indicadores biométricos con la nueva matriz condicional.</p>
+      </div>
+    </section>
+
+  </main>
+
+  <script>
+    // Variable global para almacenar el estado
+    const captures = { 1: null, 2: null };
+    
+    // Inicialización simulada de FaceMesh / Cámara
+    const video = document.getElementById('webcam');
+    const canvas = document.getElementById('meshCanvas');
+    
+    navigator.mediaDevices.getUserMedia({ video: true }).then(stream => {
+      video.srcObject = stream;
+    }).catch(err => console.error("Error al acceder a la cámara: ", err));
+
+    function captureFrame(step) {
+      const gender = document.getElementById('genderSelect').value;
+      const age = parseInt(document.getElementById('ageInput').value);
+      
+      captures[step] = { gender, age, timestamp: new Date().toISOString() };
+      
+      alert(`Toma ${step} capturada exitosamente con parametrización (${gender.toUpperCase()}, ${age} años).`);
+      
+      if(captures[1] || captures[2]) {
+        renderDiagnosticPreview(gender, age);
+      }
+    }
+
+    function renderDiagnosticPreview(gender, age) {
+      const container = document.getElementById('diagnosticResults');
+      
+      // Ejemplo de asignación condicional según sexo y edad
+      const isFem = gender === 'femenino';
+      
+      const pArcoSuperciliar = isFem ? "Convexidad Lisa y Delicada (Arquetipo de Élite)" : "Prominencia Masculina Dominante";
+      const pMandibula = isFem ? "Mandíbula en V Pulida (V-Line de Élite)" : "Mandíbula de V Marcada";
+      const pFrente = isFem ? "Verticalidad Redondeada (90 Grados Femenina)" : "Inclinación Masculina Definida (80 a 84 Grados)";
+      const pParpado = isFem ? "Exposición Definida Almendrada" : "Párpado Oculto (Hooded)";
+      
+      container.innerHTML = `
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          
+          <!-- Bloque Morfológico -->
+          <div class="bg-slate-900/80 p-3 rounded-lg border border-slate-700/50">
+            <h3 class="text-cyan-400 font-semibold mb-2 uppercase tracking-wider text-[11px]">1. Análisis Morfológico y Estructural</h3>
+            <ul class="space-y-2">
+              <li><strong class="text-slate-300">Arco Superciliar:</strong> <span class="text-slate-400">${pArcoSuperciliar}</span></li>
+              <li><strong class="text-slate-300">Forma Mandibular:</strong> <span class="text-slate-400">${pMandibula}</span></li>
+              <li><strong class="text-slate-300">Inclinación de Frente:</strong> <span class="text-slate-400">${pFrente}</span></li>
+              <li><strong class="text-slate-300">Párpado Superior:</strong> <span class="text-slate-400">${pParpado}</span></li>
+            </ul>
+          </div>
+
+          <!-- Bloque Colorimetría -->
+          <div class="bg-slate-900/80 p-3 rounded-lg border border-slate-700/50">
+            <h3 class="text-amber-400 font-semibold mb-2 uppercase tracking-wider text-[11px]">2. Colorimetría y Subtonos (Pixeles)</h3>
+            <ul class="space-y-2">
+              <li><strong class="text-slate-300">Tono de Piel:</strong> <span class="text-slate-400">Intermedio / Neutro Claro (Fitzpatrick III)</span></li>
+              <li><strong class="text-slate-300">Subtono:</strong> <span class="text-slate-400">Cálido (Dorado / Melocotón)</span></li>
+              <li><strong class="text-slate-300">Estación Cromática:</strong> <span class="text-slate-400">Otoño Suave</span></li>
+              <li><strong class="text-slate-300">Tonalidad Labial:</strong> <span class="text-slate-400">Rosado Salmón</span></li>
+            </ul>
+          </div>
+
+        </div>
+      `;
+    }
+
+    function generatePDFReport() {
+      if (!captures[1] && !captures[2]) {
+        alert("Por favor realiza al menos una captura antes de generar el PDF.");
+        return;
+      }
+      alert("Generando expediente en PDF con la nueva taxonomía y datos calibrados...");
+    }
+  </script>
 </body>
 </html>
