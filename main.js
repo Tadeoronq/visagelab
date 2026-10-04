@@ -1,10 +1,13 @@
-// main.js - Coordinador Principal, Selector Multicámara y Semáforo de Calidad
+// main.js - Coordinador Principal, Captura Fotográfica y Controles de Sujeto
 
 let currentStream = null;
 const videoElement = document.getElementById('webcam');
 const canvasElement = document.getElementById('output_canvas');
 const canvasCtx = canvasElement.getContext('2d', { willReadFrequently: true });
 const cameraSelect = document.getElementById('cameraSelect');
+
+let capturedPhotos = [];
+let captureStep = 0; // 0: Frontal, 1: Perfil
 
 // Configuración MediaPipe FaceMesh
 const faceMesh = new FaceMesh({
@@ -18,7 +21,7 @@ faceMesh.setOptions({
   minTrackingConfidence: 0.6
 });
 
-// 1. DETECCIÓN MULTICÁMARA (Frontal, Trasera, USB)
+// 1. DETECCIÓN MULTICÁMARA
 async function getConnectedCameras() {
   try {
     const devices = await navigator.mediaDevices.enumerateDevices();
@@ -77,7 +80,7 @@ async function processVideoFrame() {
   requestAnimationFrame(processVideoFrame);
 }
 
-// 4. MESH Y EVALUACIÓN DEL SEMÁFORO DE CALIDAD EN TIEMPO REAL
+// 4. EJECTUTAR MÓDULOS CON SEXO Y EDAD
 faceMesh.onResults((results) => {
   canvasCtx.save();
   canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
@@ -86,10 +89,15 @@ faceMesh.onResults((results) => {
   if (results.multiFaceLandmarks && results.multiFaceLandmarks.length > 0) {
     const landmarks = results.multiFaceLandmarks[0];
 
-    // Ejecutar Módulos
+    // Obtener configuración del sujeto
+    const selectedGender = document.querySelector('input[name="genderSelect"]:checked')?.value || 'male';
+
+    // Ejecutar Módulos pasándole la variante por sexo
     if (typeof BiometricsModule !== 'undefined') BiometricsModule.init(results, canvasCtx);
     if (typeof ColorimetryModule !== 'undefined') ColorimetryModule.analyze(canvasElement, landmarks);
-    if (typeof FacialTraitsModule !== 'undefined') FacialTraitsModule.analyze(landmarks, canvasElement.width, canvasElement.height);
+    if (typeof FacialTraitsModule !== 'undefined') {
+      FacialTraitsModule.analyze(landmarks, canvasElement.width, canvasElement.height, selectedGender);
+    }
 
     // Evaluar Semáforo de Calidad
     evaluateQualitySemaforo(canvasElement, canvasCtx, landmarks);
@@ -97,20 +105,18 @@ faceMesh.onResults((results) => {
   canvasCtx.restore();
 });
 
-// 5. EVALUACIÓN DEL SEMÁFORO (Luz, Contraste, Inclinación)
+// 5. EVALUACIÓN DEL SEMÁFORO DE CALIDAD
 function evaluateQualitySemaforo(canvas, ctx, landmarks) {
-  // A. Inclinación de Cabeza
   const eyeL = landmarks[33];
   const eyeR = landmarks[263];
   const tiltAngle = Math.abs((eyeL.y - eyeR.y) * 100);
   const isPoseOk = tiltAngle < 2.5;
   updateStatusDot('dot-pose', isPoseOk);
 
-  // B. Muestreo de Iluminación y Nitidez
   try {
     const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
     let totalBrightness = 0;
-    const step = 20; // Muestreo rápido
+    const step = 20;
 
     for (let i = 0; i < imgData.length; i += 4 * step) {
       totalBrightness += (imgData[i] + imgData[i + 1] + imgData[i + 2]) / 3;
@@ -124,24 +130,39 @@ function evaluateQualitySemaforo(canvas, ctx, landmarks) {
     updateStatusDot('dot-light', isLightOk);
     updateStatusDot('dot-contrast', isContrastOk);
     updateStatusDot('dot-quality', isQualityOk);
-
-  } catch (e) {
-    // Manejo de restricciones de CORS si aplican
-  }
+  } catch (e) {}
 }
 
 function updateStatusDot(elementId, isOk) {
   const dot = document.getElementById(elementId);
   if (!dot) return;
-
-  if (isOk) {
-    dot.className = "w-2.5 h-2.5 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.8)]";
-  } else {
-    dot.className = "w-2.5 h-2.5 rounded-full bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.8)]";
-  }
+  dot.className = isOk 
+    ? "w-2.5 h-2.5 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.8)]"
+    : "w-2.5 h-2.5 rounded-full bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.8)]";
 }
 
-// Inicializar al cargar la página
+// 6. LÓGICA DEL BOTÓN DE CAPTURA
+const btnCapture = document.getElementById('btnCapture');
+const captureStepText = document.getElementById('captureStepText');
+
+if (btnCapture) {
+  btnCapture.addEventListener('click', () => {
+    const currentSnapshot = canvasElement.toDataURL('image/jpeg', 0.9);
+    capturedPhotos.push(currentSnapshot);
+
+    captureStep++;
+    if (captureStep === 1) {
+      captureStepText.innerText = "Perfil";
+      alert("✅ Foto Frontal capturada exitosamente. Ahora gira el rostro para la toma de Perfil.");
+    } else {
+      captureStepText.innerText = "Frontal";
+      captureStep = 0;
+      alert("✅ Capturas completadas. Ya puedes exportar el Expediente PDF completo.");
+    }
+  });
+}
+
+// Inicialización
 document.addEventListener('DOMContentLoaded', () => {
   getConnectedCameras();
 });
