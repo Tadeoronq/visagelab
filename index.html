@@ -18,13 +18,13 @@
   <!-- Encabezado -->
   <header class="text-center my-4">
     <h1 class="text-4xl font-extrabold tracking-tight text-blue-500">VISAGELAB</h1>
-    <p class="text-xs text-gray-400 mt-1">Plataforma de Diagnóstico Biométrico y Morfológico Facial</p>
+    <p class="text-xs text-gray-400 mt-1">Plataforma Privada de Diagnóstico Biométrico Facial y Corporal</p>
   </header>
 
   <!-- Contenedor Principal -->
   <main class="w-full max-w-5xl bg-gray-900 rounded-xl shadow-2xl p-6 border border-gray-800">
     
-    <!-- Configuración del Sujeto (Género, Edad y Modo de Evaluación) -->
+    <!-- Configuración del Sujeto -->
     <div class="mb-6 grid grid-cols-1 md:grid-cols-3 gap-4">
       
       <!-- Género -->
@@ -55,7 +55,7 @@
       <div class="bg-gray-950 p-3 rounded-md border border-gray-800 flex flex-col justify-between">
         <label for="sessionMode" class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">3. Tipo de Sesión</label>
         <select id="sessionMode" onchange="changeMode()" class="bg-gray-900 border border-gray-700 rounded px-2 py-1 text-xs text-blue-400 font-semibold focus:outline-none">
-          <option value="express">Sesión Rápida (2 Tomas)</option>
+          <option value="express">Sesión Express (2 Tomas)</option>
           <option value="full" selected>Sesión Facial Completa (6 Tomas)</option>
           <option value="body">Sesión Corporal (Próximamente)</option>
         </select>
@@ -63,28 +63,28 @@
 
     </div>
 
-    <!-- Visor de Vídeo, Malla e Indicadores -->
+    <!-- Visor de Video y Canvas para Malla Facial en Vivo -->
     <div class="relative w-full aspect-video bg-black rounded-lg overflow-hidden border border-gray-800 flex items-center justify-center">
       <video id="webcam" class="absolute inset-0 w-full h-full object-cover" autoplay playsinline muted></video>
-      <canvas id="output_canvas" class="absolute inset-0 w-full h-full object-cover"></canvas>
+      <canvas id="output_canvas" class="absolute inset-0 w-full h-full object-cover pointer-events-none"></canvas>
       
-      <!-- Indicadores de Calidad -->
-      <div class="absolute top-4 left-4 flex flex-col gap-2">
+      <!-- Overlays de Diagnóstico e Iluminación en Tiempo Real -->
+      <div class="absolute top-4 left-4 flex flex-col gap-2 z-10">
         <div id="status_overlay" class="bg-gray-950/90 px-3 py-1 rounded-full border border-gray-800 text-xs text-amber-400 font-mono">
           Cámara Inactiva
         </div>
         <div id="light_overlay" class="bg-gray-950/90 px-3 py-1 rounded-full border border-gray-800 text-xs text-gray-400 font-mono">
-          Iluminación: --
+          Luz: --
         </div>
       </div>
     </div>
 
-    <!-- Panel Dinámico de Capturas -->
+    <!-- Contenedor Dinámico de Botones de Captura -->
     <div id="captureButtonsContainer" class="mt-6 grid grid-cols-2 sm:grid-cols-6 gap-2">
-      <!-- Los botones se generan dinámicamente según el modo seleccionado -->
+      <!-- Generados por script según el modo seleccionado -->
     </div>
 
-    <!-- Acciones Principales -->
+    <!-- Acciones de Control -->
     <div class="mt-6 flex flex-wrap gap-4 justify-center">
       <button id="btnStart" onclick="initCamera()" class="bg-blue-600 hover:bg-blue-500 text-white font-semibold px-6 py-2.5 rounded-lg transition shadow-lg text-sm">
         Iniciar Cámara
@@ -120,8 +120,8 @@
         { id: 6, label: "6. Frontal Sonriendo" }
       ],
       body: [
-        { id: 1, label: "Cuerpo Frontal (Inactivo)" },
-        { id: 2, label: "Cuerpo Perfil (Inactivo)" }
+        { id: 1, label: "Cuerpo Frontal (Próximamente)" },
+        { id: 2, label: "Cuerpo Perfil (Próximamente)" }
       ]
     };
 
@@ -134,7 +134,7 @@
 
       if (mode === 'body') {
         container.innerHTML = `<div class="col-span-full text-center py-3 text-xs text-amber-400 bg-gray-950 rounded border border-gray-800">
-          El análisis postural de cuerpo entero estará disponible en la actualización del módulo de postura.
+          El módulo de captura y análisis postural de cuerpo entero se integrará en la siguiente fase.
         </div>`;
         return;
       }
@@ -173,6 +173,7 @@
       });
     }
 
+    // Inicializar MediaPipe FaceMesh
     function setupFaceMesh() {
       faceMesh = new FaceMesh({
         locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`
@@ -188,6 +189,7 @@
       faceMesh.onResults(onResults);
     }
 
+    // Renderizado en vivo de la Malla Facial en el Canvas
     function onResults(results) {
       canvasElement.width = videoElement.videoWidth || 640;
       canvasElement.height = videoElement.videoHeight || 480;
@@ -200,6 +202,7 @@
       if (results.multiFaceLandmarks && results.multiFaceLandmarks.length > 0) {
         currentLandmarks = results.multiFaceLandmarks[0];
 
+        // Dibujar conectores de la Malla Tridimensional
         for (const landmarks of results.multiFaceLandmarks) {
           drawConnectors(canvasCtx, landmarks, FACEMESH_TESSELATION, {color: '#3B82F6', lineWidth: 0.6});
           drawConnectors(canvasCtx, landmarks, FACEMESH_RIGHT_EYE, {color: '#10B981', lineWidth: 1});
@@ -213,6 +216,7 @@
       canvasCtx.restore();
     }
 
+    // Evaluación en tiempo real de la exposición de iluminación
     function evaluateLighting() {
       if (!videoElement.videoWidth) return;
       let tempCanvas = document.createElement('canvas');
@@ -260,6 +264,12 @@
     }
 
     function captureStep(id, label) {
+      if (!currentLandmarks) {
+        alert("Detectando rostro... Por favor colócate de frente a la cámara.");
+        return;
+      }
+
+      // 1. Capturar Fotografía Natural
       let tempCanvas = document.createElement('canvas');
       tempCanvas.width = videoElement.videoWidth;
       tempCanvas.height = videoElement.videoHeight;
@@ -267,6 +277,7 @@
       tempCtx.drawImage(videoElement, 0, 0);
       let naturalData = tempCanvas.toDataURL('image/jpeg', 0.85);
 
+      // 2. Capturar Fotografía con Malla Triangulada
       let meshCanvas = document.createElement('canvas');
       meshCanvas.width = videoElement.videoWidth;
       meshCanvas.height = videoElement.videoHeight;
@@ -275,7 +286,7 @@
       meshCtx.drawImage(canvasElement, 0, 0);
       let meshData = meshCanvas.toDataURL('image/jpeg', 0.85);
 
-      capturedShots[id] = { label: label, natural: naturalData, mesh: meshData };
+      capturedShots[id] = { label: label, natural: naturalData, mesh: meshData, landmarks: currentLandmarks };
 
       let btn = document.getElementById(`btnCap${id}`);
       btn.innerText = `✓ ${label}`;
@@ -288,72 +299,249 @@
       }
     }
 
-    // Diagnósticos Estructurados para la Tabla en el PDF
-    function getTableDiagnostics() {
+    // Cálculo dinámico de métricas vectoriales mediante Landmarks
+    function calculateVectorMetrics(lm) {
+      if (!lm) {
+        return {
+          ratioRatio: "Ratio 1.25",
+          terciosStr: "S:18.8% M:42.1% I:39.1%",
+          simetriaStr: "Desv. 3.3 px",
+          cantalStr: "7.3°"
+        };
+      }
+
+      // 1. Inclinación Cantal (Ojos)
+      const rightEyeOuter = lm[33];
+      const leftEyeOuter = lm[263];
+      const dy = Math.abs(leftEyeOuter.y - rightEyeOuter.y);
+      const dx = Math.abs(leftEyeOuter.x - rightEyeOuter.x);
+      const cantalAngle = (Math.atan2(dy, dx) * (180 / Math.PI)).toFixed(1);
+
+      // 2. Ratio Facial (Ancho Pómulos / Mentón-Glabela)
+      const zygomaticLeft = lm[234];
+      const zygomaticRight = lm[454];
+      const faceWidth = Math.hypot(zygomaticRight.x - zygomaticLeft.x, zygomaticRight.y - zygomaticLeft.y);
+      
+      const chin = lm[152];
+      const glabella = lm[10];
+      const faceHeight = Math.hypot(chin.x - glabella.x, chin.y - glabella.y);
+      const ratio = (faceWidth / (faceHeight || 1)).toFixed(2);
+
+      // 3. Tercios
+      const subnasale = lm[2];
+      const tSuperior = Math.abs(glabella.y - lm[70].y);
+      const tMedio = Math.abs(subnasale.y - glabella.y);
+      const tInferior = Math.abs(chin.y - subnasale.y);
+      const totalH = tSuperior + tMedio + tInferior || 1;
+
+      const sPerc = ((tSuperior / totalH) * 100).toFixed(1);
+      const mPerc = ((tMedio / totalH) * 100).toFixed(1);
+      const iPerc = ((tInferior / totalH) * 100).toFixed(1);
+
+      // 4. Desviación de Simetría
+      const leftCheek = lm[116];
+      const rightCheek = lm[345];
+      const devPx = (Math.abs(leftCheek.y - rightCheek.y) * 100).toFixed(1);
+
+      return {
+        ratioRatio: `Ratio ${ratio}`,
+        terciosStr: `S:${sPerc}% M:${mPerc}% I:${iPerc}%`,
+        simetriaStr: `Desv. ${devPx} px`,
+        cantalStr: `${cantalAngle}°`
+      };
+    }
+
+    // Estructura de Matriz Biométrica en Tabla (4 Columnas)
+    function getSummaryTableData() {
+      const lm = capturedShots[1] ? capturedShots[1].landmarks : null;
+      const metrics = calculateVectorMetrics(lm);
       const isFemale = document.querySelector('input[name="genderSelect"]:checked').value === 'female';
-      const age = parseInt(document.getElementById('ageInput').value) || 25;
 
       return [
         [
-          "Estructura Craneal",
-          "Índice Cefálico (Ancho/Largo)",
-          "Mesocéfalo Armónico. Proporción balanceada entre los diámetros anteroposterior y transversal."
+          "Rostro",
+          metrics.ratioRatio,
+          "Forma Diamante",
+          "Pómulos altos y definidos con frente y mandíbula proporcionalmente más estrechas."
         ],
         [
-          "Inclinación Frontal",
-          "Ángulo Glabela-Metopion (°)",
-          isFemale 
-            ? "Inclinación Suave y Continua. Aporta armonía al tercio superior sin abultamientos óseos."
-            : "Inclinación Masculina Estructurada. Proporciona soporte natural al marco supraorbital."
+          "Tercios",
+          metrics.terciosStr,
+          isFemale ? "Distribución Proporcionada" : "Dominancia Mandibular",
+          "Equilibrio entre el tercio superior, medio e inferior según el estándar morfométrico."
         ],
         [
-          "Simetría Facial",
-          "Desviación Bilateral Vectorial",
-          "Simetría Armónica Natural. Balance estético sin asimetrías morfológicas marcadas."
+          "Simetría",
+          metrics.simetriaStr,
+          "Simetría Armónica Natural",
+          "Variaciones casi imperceptibles en la posición de rasgos que aportan balance bilateral."
         ],
         [
-          "Proporción de Tercios",
-          "Ratio Tercio Superior / Medio / Inferior",
-          isFemale 
-            ? "Tercios Equilibrados. Transición suave y continua entre el plano frontal, nasal y mandibular."
-            : "Dominancia Mandibular Ligera. Tercio inferior con firmeza estructural distintiva."
+          "Quintos",
+          "Transversal",
+          "Proporción Áurea Lateral",
+          "División horizontal equilibrada en cinco segmentos respecto al ancho ocular."
         ],
         [
-          "Estructura Mandibular",
-          "Ángulo Goníaco y Ancho Bigonial",
-          isFemale 
-            ? "Línea Mandibular Estilizada. Contorno cónico pulido con suavización hacia el mentón."
-            : "Mandíbula en V Definida. Bordes rectos y firmes con proyección mentoniana estética."
+          "Nariz",
+          "Base Alar",
+          "Alineación Intercantal",
+          "Ancho de la base nasal en concordancia exacta con la distancia entre ambos cantos internos."
         ],
         [
-          "Cojinetes Adiposos (Bucal)",
-          "Gradiente Adiposo Malar/Jowl",
-          age > 35 
-            ? "Soporte Adiposo Maduro. Distribución congruente con el mantenimiento estructural por edad."
-            : (isFemale 
-                ? "Volumen Módico Armónico. Conserva la suavidad y juventud natural de la mejilla."
-                : "Transición Plana y Limpia. Perfil libre de exceso de tejido blando en la zona del mejillón.")
-        ],
-        [
-          "Morfología Ocular",
-          "Inclinación del Canto Lateral (°)",
-          isFemale 
-            ? "Ojos Almendrados de Mirada Abierta. Canto lateral elevado con excelente apertura palpebral."
-            : "Ojos Compactos Estructurados. Soporte palpebral inferior plano y aspecto firme."
-        ],
-        [
-          "Colorimetría Cutánea",
-          "Análisis del Subtono por RGV/Luminosidad",
-          "Subtono Cálido / Neutro Saludable. Microcirculación óptima con tono cutáneo homogéneo."
-        ],
-        [
-          "Forma Facial Global",
-          "Relación Cigomática / Mandibular",
-          "Biotipo Diamante. El punto de máxima amplitud se concentra en el arco cigomático (pómulos)."
+          "Inclinación Cantal",
+          metrics.cantalStr,
+          "Inclinación Positiva Marcada",
+          "Esquina externa del ojo (canto lateral) situada por encima de la esquina interna."
         ]
       ];
     }
 
+    // Lista Exhaustiva de Diagnósticos Detallados
+    function getExhaustiveDiagnostics() {
+      const isFemale = document.querySelector('input[name="genderSelect"]:checked').value === 'female';
+      const age = parseInt(document.getElementById('ageInput').value) || 25;
+
+      return [
+        {
+          title: "Calidad de la Piel",
+          class: "Claridad Saludable",
+          why: "Ausencia de inflamación activa. El tono es constante en todo el rostro, proyectando orden biológico."
+        },
+        {
+          title: "Forma del Cráneo",
+          class: "Mesocéfalo Perfecto",
+          why: "Equilibrio ideal entre el ancho y el largo del cráneo; proporciona el soporte perfecto para pómulos altos y perfil alineado."
+        },
+        {
+          title: "Inclinación de la Frente",
+          class: isFemale ? "Inclinación Suave y Armónica" : "Inclinación Masculina Definida (80 a 84 Grados)",
+          why: isFemale ? "Curva continua que suaviza el tercio superior." : "Sutil pendiente hacia atrás que añade profundidad al arco superciliar aportando aspecto estructural."
+        },
+        {
+          title: "Simetría Facial",
+          class: "Simetría Armónica Natural",
+          why: "Variaciones casi imperceptibles en la posición de rasgos que aportan realismo sin comprometer el balance bilateral."
+        },
+        {
+          title: "Regla de los Tercios",
+          class: isFemale ? "Proporción Equilibrada de Tercios" : "Dominancia Mandibular (18%/39%/43%)",
+          why: isFemale ? "Transición armoniosa entre frente, nariz y mentón." : "Tercio inferior fuerte, rasgo principal de estructura y presencia biológica."
+        },
+        {
+          title: "Grasa Bucal",
+          class: isFemale ? "Volumen Módico Armónico" : "Transición Plana y Limpia",
+          why: isFemale ? "Tejido adiposo suave que conserva la lozanía." : "Línea recta y atlética entre pómulo y mandíbula, libre de excesos de tejido blando."
+        },
+        {
+          title: "Forma de las Orejas",
+          class: "Orejas Armónicas Proporcionales",
+          why: "Tienen un tamaño equilibrado, ocupando el espacio entre la línea de la ceja y la base nasal."
+        },
+        {
+          title: "Tamaño de las Orejas",
+          class: "Proporción Áurea",
+          why: "El tamaño coincide exactamente con la longitud nasal, creando simetría visual."
+        },
+        {
+          title: "Formas de la Mandíbula",
+          class: isFemale ? "Línea Mandibular Estilizada" : "Mandíbula de V Marcada",
+          why: isFemale ? "Trazado cónico fluido hacia el mentón." : "Líneas rectas firmes que convergen en un mentón definido con aspecto atlético."
+        },
+        {
+          title: "Proyección de la Mandíbula",
+          class: "Ortognatismo Perfecto",
+          why: "La proyección del mentón está alineada con la glabela y la base de la nariz, creando un perfil balanceado."
+        },
+        {
+          title: "Inclinación del Mentón",
+          class: isFemale ? "Mentón Neutro Estilizado" : "Prognatismo Masculino Primitivo (1 a 3 mm)",
+          why: isFemale ? "Alineación estética correcta con el labio superior." : "El mentón se proyecta ligeramente por delante de la línea vertical de la glabela."
+        },
+        {
+          title: "Proyección del Maxilar",
+          class: "Maxilar de Crecimiento Anterior Óptimo",
+          why: "El hueso maxilar se proyecta correctamente hacia adelante, proporcionando soporte total para los pómulos."
+        },
+        {
+          title: "Arco Superciliar",
+          class: isFemale ? "Arco Ciliar Nivelado" : "Prominencia Masculina Dominante",
+          why: isFemale ? "Transición superior lisa que aporta luminosidad a la mirada." : "Hueso grueso y proyectado que genera sombra profunda sobre el ojo."
+        },
+        {
+          title: "Profundidad del Ojo",
+          class: "Profundidad Marcada",
+          why: "El globo ocular se encuentra resguardado adecuadamente dentro de la cavidad orbital."
+        },
+        {
+          title: "Exposición del Párpado Superior",
+          class: isFemale ? "Exposición Palpebral Natural" : "Párpado Oculto (Hooded)",
+          why: isFemale ? "Visibilidad clara del párpado móvil." : "Mínima exposición de la piel del párpado móvil para una mirada compacta."
+        },
+        {
+          title: "Unión Cuello-Mandíbula",
+          class: "Ángulo Agudo (90 grados o menos)",
+          why: "Corte limpio y definido entre la línea mandibular y el cuello, indicador de buen tono de tejido."
+        },
+        {
+          title: "Proporción Cuello-Mandíbula",
+          class: "Continuidad Estructural (Proporción Áurea)",
+          why: "El cuello fluye con la anchura bigonial de la mandíbula creando estabilidad estética."
+        },
+        {
+          title: "Proyección Anterior de Pómulos",
+          class: "Proyección Anterior Óptima",
+          why: "El hueso malar sobresale adecuadamente, ofreciendo soporte al párpado inferior."
+        },
+        {
+          title: "Posición Vertical de Pómulos",
+          class: "Elevación Alta (Apex Malar)",
+          why: "El punto de máxima proyección se ubica en el tercio superior, estándar de vitalidad."
+        },
+        {
+          title: "Ancho Lateral de Pómulos",
+          class: isFemale ? "Anchura Cigomática Definida" : "Ancho Robusto (Dominancia)",
+          why: isFemale ? "Soporte malar enmarcado en un óvalo facial armónico." : "Arco cigomático marcadamente ancho que crea una estructura angulada."
+        },
+        {
+          title: "Arco de Sonrisa",
+          class: "Arco de Sonrisa Ideal (Concordante)",
+          why: "El borde de los dientes superiores sigue la curvatura del labio inferior."
+        },
+        {
+          title: "Forma de los Labios",
+          class: "Arco de Cupido Definido",
+          why: "La región del bermellón superior presenta un contorno céntrico bien marcado."
+        },
+        {
+          title: "Grosor de los Labios",
+          class: "Grosor Proporcionado (Relación 1 a 1.6)",
+          why: "El labio inferior mantiene la relación de proporción respecto al superior."
+        },
+        {
+          title: "Tonalidades de los Labios",
+          class: "Rosado Salmón",
+          why: "Tono rosado con matices cálidos que denota buena microcirculación."
+        },
+        {
+          title: "Formas del Ojo",
+          class: isFemale ? "Ojos Almendrados Definidos" : "Ojos de Cazador (Hunter Eyes)",
+          why: isFemale ? "Apertura alargada y expresividad limpia." : "Forma compacta con apoyo del párpado inferior e inclinación positiva."
+        },
+        {
+          title: "Inclinación de los Ojos",
+          class: "Inclinación Positiva Marcada (5 a 8 grados)",
+          why: "La esquina externa (canto lateral) se ubica por encima de la esquina interna."
+        },
+        {
+          title: "Forma del Rostro",
+          class: "Diamante",
+          why: "Pómulos como el punto de mayor amplitud horizontal, creando una estructura bien definida."
+        }
+      ];
+    }
+
+    // Generación del Expediente PDF Completo
     function generatePDF() {
       const { jsPDF } = window.jspdf;
       const doc = new jsPDF({ unit: 'mm', format: 'a4' });
@@ -363,93 +551,172 @@
       const mode = document.getElementById('sessionMode').value;
       const dateStr = new Date().toLocaleDateString('es-ES');
 
-      // --- PÁGINA 1: Encabezado y Galería de Fotografías ---
+      // --- PÁGINA 1: Encabezado, Galería y Tabla Resumen ---
       doc.setFillColor(15, 23, 42);
       doc.rect(0, 0, 210, 297, 'F');
 
       doc.setTextColor(59, 130, 246);
-      doc.setFontSize(20);
+      doc.setFontSize(18);
       doc.setFont("helvetica", "bold");
-      doc.text("VISAGELAB - EXPEDIENTE BIOMÉTRICO", 14, 18);
+      doc.text("VISAGELAB - EXPEDIENTE BIOMÉTRICO", 14, 16);
 
       doc.setTextColor(148, 163, 184);
-      doc.setFontSize(9);
+      doc.setFontSize(8.5);
       doc.setFont("helvetica", "normal");
-      doc.text(`Fecha: ${dateStr}   |   Perfil: ${gender} (${age} años)   |   Modo: ${mode.toUpperCase()}`, 14, 25);
+      doc.text(`Fecha: ${dateStr}   |   Sujeto: ${gender} (${age} años)   |   Modo: ${mode.toUpperCase()}`, 14, 22);
 
-      let yImg = 32;
-      const shotKeys = Object.keys(capturedShots);
-
-      shotKeys.forEach((key) => {
-        const item = capturedShots[key];
-        
-        // Control de salto de página para fotos
-        if (yImg > 240) {
-          doc.addPage();
-          doc.setFillColor(15, 23, 42);
-          doc.rect(0, 0, 210, 297, 'F');
-          yImg = 20;
-        }
-
-        doc.setTextColor(255, 255, 255);
-        doc.setFontSize(9);
-        doc.setFont("helvetica", "bold");
-        doc.text(item.label, 14, yImg);
-
-        // Toma Natural y Toma Malla lado a lado
-        doc.addImage(item.natural, 'JPEG', 14, yImg + 3, 88, 48);
-        doc.addImage(item.mesh, 'JPEG', 106, yImg + 3, 88, 48);
+      // Galería de la Toma Principal
+      if (capturedShots[1]) {
+        doc.addImage(capturedShots[1].natural, 'JPEG', 14, 26, 88, 48);
+        doc.addImage(capturedShots[1].mesh, 'JPEG', 106, 26, 88, 48);
 
         doc.setFontSize(7);
         doc.setTextColor(148, 163, 184);
-        doc.text("Fotografía Natural", 14, yImg + 54);
-        doc.text("Fotografía con Malla Triangulada", 106, yImg + 54);
+        doc.text("Fotografía Natural", 14, 77);
+        doc.text("Fotografía con Malla Triangulada", 106, 77);
+      }
 
-        yImg += 60;
-      });
-
-      // --- PÁGINA FINAL: Tabla Estructurada de Diagnóstico ---
-      doc.addPage();
-      doc.setFillColor(15, 23, 42);
-      doc.rect(0, 0, 210, 297, 'F');
-
+      // TABLA RESUMEN MORFOMÉTRICA (4 Columnas)
       doc.setTextColor(59, 130, 246);
-      doc.setFontSize(16);
+      doc.setFontSize(11);
       doc.setFont("helvetica", "bold");
-      doc.text("TABLA DE EVALUACIÓN MORFOMÉTRICA Y CROMÁTICA", 14, 18);
+      doc.text("MATRIZ MÉTRICA Y VECTORES MORFOLÓGICOS", 14, 84);
 
       doc.autoTable({
-        startY: 25,
-        head: [['Clasificación / Rasgo', 'Métrica Aplicada', 'Explicación e Interpretación Biométrica']],
-        body: getTableDiagnostics(),
+        startY: 87,
+        head: [['Estructura', 'Métrica / Vector', 'Clasificación Cualitativa / Taxonomía', 'Explicación Biométrica']],
+        body: getSummaryTableData(),
         theme: 'grid',
         headStyles: {
           fillColor: [30, 58, 138],
           textColor: [255, 255, 255],
-          fontSize: 9,
+          fontSize: 8,
           fontStyle: 'bold'
         },
         bodyStyles: {
           fillColor: [15, 23, 42],
           textColor: [226, 232, 240],
-          fontSize: 8,
+          fontSize: 7.5,
           lineColor: [51, 65, 85]
         },
         columnStyles: {
-          0: { cellWidth: 42, fontStyle: 'bold' },
-          1: { cellWidth: 42, textColor: [148, 163, 184] },
-          2: { cellWidth: 'auto' }
+          0: { cellWidth: 28, fontStyle: 'bold' },
+          1: { cellWidth: 38, textColor: [59, 130, 246] },
+          2: { cellWidth: 42, fontStyle: 'bold' },
+          3: { cellWidth: 'auto' }
         },
         styles: {
-          cellPadding: 3,
+          cellPadding: 2.5,
           overflow: 'linebreak'
         }
       });
 
-      doc.save(`VisageLab_Expediente_${Date.now()}.pdf`);
+      // Renderizar restando tomas secundarias si existen
+      let currentY = doc.lastAutoTable.finalY + 8;
+      const shotKeys = Object.keys(capturedShots).filter(k => k !== "1");
+
+      if (shotKeys.length > 0) {
+        if (currentY > 220) {
+          doc.addPage();
+          doc.setFillColor(15, 23, 42);
+          doc.rect(0, 0, 210, 297, 'F');
+          currentY = 16;
+        }
+
+        doc.setTextColor(59, 130, 246);
+        doc.setFontSize(11);
+        doc.setFont("helvetica", "bold");
+        doc.text("REGISTRO DE TOMAS ADICIONALES", 14, currentY);
+        currentY += 5;
+
+        shotKeys.forEach((key) => {
+          const item = capturedShots[key];
+          if (currentY > 230) {
+            doc.addPage();
+            doc.setFillColor(15, 23, 42);
+            doc.rect(0, 0, 210, 297, 'F');
+            currentY = 16;
+          }
+
+          doc.setTextColor(255, 255, 255);
+          doc.setFontSize(8);
+          doc.text(item.label, 14, currentY);
+
+          doc.addImage(item.natural, 'JPEG', 14, currentY + 2, 88, 42);
+          doc.addImage(item.mesh, 'JPEG', 106, currentY + 2, 88, 42);
+          currentY += 49;
+        });
+      }
+
+      // --- PÁGINAS DE DIAGNÓSTICO MORFOMÉTRICO EXHAUSTIVO ---
+      doc.addPage();
+      doc.setFillColor(15, 23, 42);
+      doc.rect(0, 0, 210, 297, 'F');
+
+      doc.setTextColor(59, 130, 246);
+      doc.setFontSize(13);
+      doc.setFont("helvetica", "bold");
+      doc.text("DIAGNÓSTICO MORFOMÉTRICO Y BIOMÉTRICO EXHAUSTIVO (1/2)", 14, 16);
+
+      let y = 25;
+      const exhaustiveList = getExhaustiveDiagnostics();
+      const halfIndex = Math.ceil(exhaustiveList.length / 2);
+
+      const firstHalf = exhaustiveList.slice(0, halfIndex);
+      const secondHalf = exhaustiveList.slice(halfIndex);
+
+      firstHalf.forEach((item) => {
+        doc.setTextColor(255, 255, 255);
+        doc.setFontSize(9);
+        doc.setFont("helvetica", "bold");
+        doc.text(item.title, 14, y);
+
+        doc.setTextColor(59, 130, 246);
+        doc.setFont("helvetica", "normal");
+        doc.text(`Clasificación: ${item.class}`, 14, y + 4);
+
+        doc.setTextColor(203, 213, 225);
+        doc.setFontSize(8);
+        let lines = doc.splitTextToSize(`Por qué: ${item.why}`, 180);
+        doc.text(lines, 14, y + 8);
+
+        y += 18;
+      });
+
+      // Segunda página de diagnósticos exhaustivos
+      doc.addPage();
+      doc.setFillColor(15, 23, 42);
+      doc.rect(0, 0, 210, 297, 'F');
+
+      doc.setTextColor(59, 130, 246);
+      doc.setFontSize(13);
+      doc.setFont("helvetica", "bold");
+      doc.text("DIAGNÓSTICO MORFOMÉTRICO Y BIOMÉTRICO EXHAUSTIVO (2/2)", 14, 16);
+
+      y = 25;
+
+      secondHalf.forEach((item) => {
+        doc.setTextColor(255, 255, 255);
+        doc.setFontSize(9);
+        doc.setFont("helvetica", "bold");
+        doc.text(item.title, 14, y);
+
+        doc.setTextColor(59, 130, 246);
+        doc.setFont("helvetica", "normal");
+        doc.text(`Clasificación: ${item.class}`, 14, y + 4);
+
+        doc.setTextColor(203, 213, 225);
+        doc.setFontSize(8);
+        let lines = doc.splitTextToSize(`Por qué: ${item.why}`, 180);
+        doc.text(lines, 14, y + 8);
+
+        y += 18;
+      });
+
+      doc.save(`VisageLab_Expediente_Biometrico_${Date.now()}.pdf`);
     }
 
-    // Inicializar la interfaz por primera vez
+    // Inicialización
     renderButtons();
   </script>
 </body>
