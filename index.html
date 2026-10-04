@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>VisageLab - Biometría & Colorimetría</title>
   
-  <!-- Estilos y Librerías -->
+  <!-- Estilos y Librerías Externas -->
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
@@ -49,7 +49,7 @@
         <option value="">Buscando cámaras...</option>
       </select>
 
-      <!-- Botón de Exportación PDF (Se habilita al completar todas las fotos) -->
+      <!-- Botón de Exportación PDF -->
       <button id="btnExportPDF" class="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-lg font-medium transition-all text-xs flex items-center gap-2 opacity-50 cursor-not-allowed" disabled>
         <span>📄 Exportar Expediente PDF</span>
       </button>
@@ -94,7 +94,7 @@
   <!-- Panel Principal de Diagnóstico -->
   <main class="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-6">
     
-    <!-- Visor de Cámara con Proporción Nativa Antideformación -->
+    <!-- Visor de Cámara -->
     <section class="lg:col-span-2 bg-slate-900 rounded-xl p-4 border border-slate-800 flex flex-col items-center justify-center relative">
       <video id="webcam" class="hidden" autoplay playsinline muted></video>
       
@@ -109,7 +109,7 @@
         </button>
       </div>
 
-      <!-- Semáforo de Calidad Clínico -->
+      <!-- Semáforo de Calidad -->
       <div class="w-full mt-4 bg-slate-950 p-3 rounded-lg border border-slate-800 grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
         <div id="status-light" class="flex items-center gap-2 p-1.5 rounded bg-slate-900 border border-slate-800">
           <span class="w-2.5 h-2.5 rounded-full bg-slate-600" id="dot-light"></span>
@@ -148,12 +148,12 @@
     </aside>
   </main>
 
-  <!-- MÓDULOS DEL SISTEMA VISAGELAB -->
-  <script src="facialtaxonomy.js"></script>
+  <!-- NOMBRES CORREGIDOS COINCIDIENDO EXACTAMENTE CON TU REPOSITORIO EN GITHUB -->
+  <script src="facial-taxonomy.js"></script>
   <script src="colorimetry.js"></script>
   <script src="biometrics.js"></script>
   <script src="facial-traits.js"></script>
-  <script src="pdfgenerator.js"></script>
+  <script src="pdf-generator.js"></script>
   <script src="app.js"></script>
 </body>
 </html>
