@@ -8,6 +8,7 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <!-- MediaPipe Libraries -->
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js" crossorigin="anonymous"></script>
   <!-- jsPDF & AutoTable -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
@@ -24,8 +25,8 @@
   <!-- Contenedor Principal -->
   <main class="w-full max-w-5xl bg-gray-900 rounded-xl shadow-2xl p-6 border border-gray-800">
     
-    <!-- Configuración del Sujeto -->
-    <div class="mb-6 grid grid-cols-1 md:grid-cols-3 gap-4">
+    <!-- Configuración del Sujeto y Selector de Cámara -->
+    <div class="mb-6 grid grid-cols-1 md:grid-cols-4 gap-4">
       
       <!-- Género -->
       <div class="bg-gray-950 p-3 rounded-md border border-gray-800 flex flex-col justify-between">
@@ -51,9 +52,17 @@
         </div>
       </div>
 
+      <!-- Selector de Fuentes de Video / Cámaras -->
+      <div class="bg-gray-950 p-3 rounded-md border border-gray-800 flex flex-col justify-between">
+        <label for="cameraSelect" class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">3. Entrada de Cámara</label>
+        <select id="cameraSelect" onchange="switchCamera()" class="bg-gray-900 border border-gray-700 rounded px-2 py-1 text-xs text-blue-400 font-semibold focus:outline-none truncate">
+          <option value="">Cargando dispositivos...</option>
+        </select>
+      </div>
+
       <!-- Modo de Sesión -->
       <div class="bg-gray-950 p-3 rounded-md border border-gray-800 flex flex-col justify-between">
-        <label for="sessionMode" class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">3. Tipo de Sesión</label>
+        <label for="sessionMode" class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">4. Tipo de Sesión</label>
         <select id="sessionMode" onchange="changeMode()" class="bg-gray-900 border border-gray-700 rounded px-2 py-1 text-xs text-blue-400 font-semibold focus:outline-none">
           <option value="express">Sesión Express (2 Tomas)</option>
           <option value="full" selected>Sesión Facial Completa (6 Tomas)</option>
@@ -65,23 +74,29 @@
 
     <!-- Visor de Video y Canvas para Malla Facial en Vivo -->
     <div class="relative w-full aspect-video bg-black rounded-lg overflow-hidden border border-gray-800 flex items-center justify-center">
-      <video id="webcam" class="absolute inset-0 w-full h-full object-cover" autoplay playsinline muted></video>
-      <canvas id="output_canvas" class="absolute inset-0 w-full h-full object-cover pointer-events-none"></canvas>
+      <video id="webcam" class="absolute inset-0 w-full h-full object-contain" autoplay playsinline muted></video>
+      <canvas id="output_canvas" class="absolute inset-0 w-full h-full object-contain pointer-events-none z-10"></canvas>
       
-      <!-- Overlays de Diagnóstico e Iluminación en Tiempo Real -->
-      <div class="absolute top-4 left-4 flex flex-col gap-2 z-10">
+      <!-- Indicadores de Estado y Métricas de Imagen en Vivo -->
+      <div class="absolute top-4 left-4 flex flex-wrap gap-2 z-20">
         <div id="status_overlay" class="bg-gray-950/90 px-3 py-1 rounded-full border border-gray-800 text-xs text-amber-400 font-mono">
           Cámara Inactiva
         </div>
         <div id="light_overlay" class="bg-gray-950/90 px-3 py-1 rounded-full border border-gray-800 text-xs text-gray-400 font-mono">
-          Luz: --
+          Brillo: --
+        </div>
+        <div id="contrast_overlay" class="bg-gray-950/90 px-3 py-1 rounded-full border border-gray-800 text-xs text-gray-400 font-mono">
+          Contraste: --
+        </div>
+        <div id="mesh_status" class="bg-gray-950/90 px-3 py-1 rounded-full border border-gray-800 text-xs text-red-400 font-mono">
+          Malla: No detectada
         </div>
       </div>
     </div>
 
     <!-- Contenedor Dinámico de Botones de Captura -->
     <div id="captureButtonsContainer" class="mt-6 grid grid-cols-2 sm:grid-cols-6 gap-2">
-      <!-- Generados por script según el modo seleccionado -->
+      <!-- Generados dinámicamente -->
     </div>
 
     <!-- Acciones de Control -->
@@ -100,11 +115,14 @@
     let videoElement = document.getElementById('webcam');
     let canvasElement = document.getElementById('output_canvas');
     let canvasCtx = canvasElement.getContext('2d');
-    let faceMesh;
-    let camera;
+    
+    let faceMesh = null;
+    let currentStream = null;
+    let isProcessing = false;
 
     let currentLandmarks = null;
     let capturedShots = {};
+    let imageMetrics = { brightness: 0, contrast: 0, status: "Aceptable" };
 
     const modesConfig = {
       express: [
@@ -120,10 +138,36 @@
         { id: 6, label: "6. Frontal Sonriendo" }
       ],
       body: [
-        { id: 1, label: "Cuerpo Frontal (Próximamente)" },
-        { id: 2, label: "Cuerpo Perfil (Próximamente)" }
+        { id: 1, label: "Cuerpo Frontal" },
+        { id: 2, label: "Cuerpo Perfil" }
       ]
     };
+
+    // Enumerar cámaras disponibles (Frontal, Trasera, USB externas)
+    async function getCameraDevices() {
+      const cameraSelect = document.getElementById('cameraSelect');
+      cameraSelect.innerHTML = '';
+
+      try {
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        const videoDevices = devices.filter(device => device.kind === 'videoinput');
+
+        if (videoDevices.length === 0) {
+          cameraSelect.innerHTML = '<option value="">No se detectaron cámaras</option>';
+          return;
+        }
+
+        videoDevices.forEach((device, index) => {
+          const option = document.createElement('option');
+          option.value = device.deviceId;
+          option.text = device.label || `Cámara ${index + 1}`;
+          cameraSelect.appendChild(option);
+        });
+      } catch (err) {
+        console.error("Error al enumerar dispositivos:", err);
+        cameraSelect.innerHTML = '<option value="">Error al cargar cámaras</option>';
+      }
+    }
 
     function renderButtons() {
       const mode = document.getElementById('sessionMode').value;
@@ -134,7 +178,7 @@
 
       if (mode === 'body') {
         container.innerHTML = `<div class="col-span-full text-center py-3 text-xs text-amber-400 bg-gray-950 rounded border border-gray-800">
-          El módulo de captura y análisis postural de cuerpo entero se integrará en la siguiente fase.
+          Módulo Corporal en desarrollo. Selecciona Sesión Express o Completa para Diagnóstico Facial.
         </div>`;
         return;
       }
@@ -145,9 +189,11 @@
       buttons.forEach(btn => {
         const b = document.createElement('button');
         b.id = `btnCap${btn.id}`;
-        b.disabled = true;
+        b.disabled = !currentStream;
         b.innerText = btn.label;
-        b.className = "bg-gray-800 text-gray-500 font-semibold py-2 px-1 rounded text-xs border border-gray-700 transition cursor-not-allowed";
+        b.className = currentStream 
+          ? "bg-blue-600 hover:bg-blue-500 text-white font-semibold py-2 px-1 rounded text-xs transition cursor-pointer shadow"
+          : "bg-gray-800 text-gray-500 font-semibold py-2 px-1 rounded text-xs border border-gray-700 transition cursor-not-allowed";
         b.onclick = () => captureStep(btn.id, btn.label);
         container.appendChild(b);
       });
@@ -155,26 +201,12 @@
 
     function changeMode() {
       renderButtons();
-      if (camera) {
-        enableCaptureButtons();
-      }
     }
 
-    function enableCaptureButtons() {
-      const mode = document.getElementById('sessionMode').value;
-      if (mode === 'body') return;
-      
-      modesConfig[mode].forEach(btn => {
-        let b = document.getElementById(`btnCap${btn.id}`);
-        if (b) {
-          b.disabled = false;
-          b.className = "bg-blue-600 hover:bg-blue-500 text-white font-semibold py-2 px-1 rounded text-xs transition cursor-pointer shadow";
-        }
-      });
-    }
-
-    // Inicializar MediaPipe FaceMesh
+    // Inicialización de MediaPipe FaceMesh
     function setupFaceMesh() {
+      if (faceMesh) return;
+
       faceMesh = new FaceMesh({
         locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`
       });
@@ -189,87 +221,143 @@
       faceMesh.onResults(onResults);
     }
 
-    // Renderizado en vivo de la Malla Facial en el Canvas
+    // Dibujo en tiempo real sobre Canvas
     function onResults(results) {
-      canvasElement.width = videoElement.videoWidth || 640;
-      canvasElement.height = videoElement.videoHeight || 480;
+      if (!videoElement.videoWidth || !videoElement.videoHeight) return;
+
+      canvasElement.width = videoElement.videoWidth;
+      canvasElement.height = videoElement.videoHeight;
 
       canvasCtx.save();
       canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
 
-      evaluateLighting();
+      // Evaluación del contraste y brillo
+      analyzeQualityMetrics();
 
       if (results.multiFaceLandmarks && results.multiFaceLandmarks.length > 0) {
         currentLandmarks = results.multiFaceLandmarks[0];
 
-        // Dibujar conectores de la Malla Tridimensional
+        document.getElementById('mesh_status').innerText = "Malla: ACTIVA";
+        document.getElementById('mesh_status').className = "bg-gray-950/90 px-3 py-1 rounded-full border border-gray-800 text-xs text-green-400 font-mono";
+
         for (const landmarks of results.multiFaceLandmarks) {
-          drawConnectors(canvasCtx, landmarks, FACEMESH_TESSELATION, {color: '#3B82F6', lineWidth: 0.6});
-          drawConnectors(canvasCtx, landmarks, FACEMESH_RIGHT_EYE, {color: '#10B981', lineWidth: 1});
-          drawConnectors(canvasCtx, landmarks, FACEMESH_LEFT_EYE, {color: '#10B981', lineWidth: 1});
-          drawConnectors(canvasCtx, landmarks, FACEMESH_LIPS, {color: '#F43F5E', lineWidth: 1});
-          drawConnectors(canvasCtx, landmarks, FACEMESH_FACEMASK, {color: '#6366F1', lineWidth: 0.8});
+          // Malla tridimensional facial completa
+          drawConnectors(canvasCtx, landmarks, FACEMESH_TESSELATION, {color: '#3B82F6', lineWidth: 0.8});
+          drawConnectors(canvasCtx, landmarks, FACEMESH_RIGHT_EYE, {color: '#10B981', lineWidth: 1.5});
+          drawConnectors(canvasCtx, landmarks, FACEMESH_LEFT_EYE, {color: '#10B981', lineWidth: 1.5});
+          drawConnectors(canvasCtx, landmarks, FACEMESH_LIPS, {color: '#F43F5E', lineWidth: 1.5});
+          drawConnectors(canvasCtx, landmarks, FACEMESH_FACEMASK, {color: '#6366F1', lineWidth: 1.0});
         }
       } else {
         currentLandmarks = null;
+        document.getElementById('mesh_status').innerText = "Malla: No detectada";
+        document.getElementById('mesh_status').className = "bg-gray-950/90 px-3 py-1 rounded-full border border-gray-800 text-xs text-red-400 font-mono";
       }
       canvasCtx.restore();
     }
 
-    // Evaluación en tiempo real de la exposición de iluminación
-    function evaluateLighting() {
-      if (!videoElement.videoWidth) return;
-      let tempCanvas = document.createElement('canvas');
-      tempCanvas.width = 80;
-      tempCanvas.height = 80;
-      let ctx = tempCanvas.getContext('2d');
-      ctx.drawImage(videoElement, 0, 0, 80, 80);
-      let imgData = ctx.getImageData(0, 0, 80, 80).data;
-      let brightness = 0;
-      for (let i = 0; i < imgData.length; i += 4) {
-        brightness += (imgData[i] + imgData[i+1] + imgData[i+2]) / 3;
+    // Procesamiento fotograma a fotograma
+    async function processVideoFrame() {
+      if (!isProcessing || videoElement.paused || videoElement.ended) return;
+      if (faceMesh) {
+        await faceMesh.send({ image: videoElement });
       }
-      brightness = Math.round(brightness / (imgData.length / 4));
-
-      let lightOverlay = document.getElementById('light_overlay');
-      if (brightness < 60) {
-        lightOverlay.innerText = `Luz: Baja (${brightness})`;
-        lightOverlay.className = "bg-gray-950/90 px-3 py-1 rounded-full border border-gray-800 text-xs text-red-400 font-mono";
-      } else if (brightness > 190) {
-        lightOverlay.innerText = `Luz: Excesiva (${brightness})`;
-        lightOverlay.className = "bg-gray-950/90 px-3 py-1 rounded-full border border-gray-800 text-xs text-amber-400 font-mono";
-      } else {
-        lightOverlay.innerText = `Luz: Óptima (${brightness})`;
-        lightOverlay.className = "bg-gray-950/90 px-3 py-1 rounded-full border border-gray-800 text-xs text-green-400 font-mono";
-      }
+      requestAnimationFrame(processVideoFrame);
     }
 
+    // Inicialización de la cámara seleccionada
     async function initCamera() {
       setupFaceMesh();
 
-      camera = new Camera(videoElement, {
-        onFrame: async () => {
-          await faceMesh.send({image: videoElement});
-        },
-        width: 1280,
-        height: 720
-      });
+      if (currentStream) {
+        currentStream.getTracks().forEach(track => track.stop());
+      }
 
-      await camera.start();
+      const cameraSelect = document.getElementById('cameraSelect');
+      const deviceId = cameraSelect.value;
 
-      document.getElementById('status_overlay').innerText = "Cámara Activa";
-      document.getElementById('status_overlay').className = "bg-gray-950/90 px-3 py-1 rounded-full border border-gray-800 text-xs text-green-400 font-mono";
+      const constraints = {
+        video: deviceId ? { deviceId: { exact: deviceId }, width: { ideal: 1280 }, height: { ideal: 720 } } : { facingMode: "user" }
+      };
 
-      enableCaptureButtons();
+      try {
+        currentStream = await navigator.mediaDevices.getUserMedia(constraints);
+        videoElement.srcObject = currentStream;
+
+        videoElement.onloadedmetadata = () => {
+          videoElement.play();
+          isProcessing = true;
+          requestAnimationFrame(processVideoFrame);
+
+          document.getElementById('status_overlay').innerText = "Cámara Activa";
+          document.getElementById('status_overlay').className = "bg-gray-950/90 px-3 py-1 rounded-full border border-gray-800 text-xs text-green-400 font-mono";
+
+          // Actualizar lista de cámaras si la primera vez no tenían etiquetas
+          if (!cameraSelect.value) {
+            getCameraDevices();
+          }
+
+          renderButtons();
+        };
+      } catch (err) {
+        console.error("Error al acceder a la cámara:", err);
+        alert("No se pudo iniciar la cámara seleccionada. Verifica los permisos de tu navegador.");
+      }
+    }
+
+    function switchCamera() {
+      if (currentStream) {
+        initCamera();
+      }
+    }
+
+    // Análisis de métricas fotométricas (Brillo, Contraste)
+    function analyzeQualityMetrics() {
+      if (!videoElement.videoWidth) return;
+
+      let tempCanvas = document.createElement('canvas');
+      tempCanvas.width = 100;
+      tempCanvas.height = 100;
+      let ctx = tempCanvas.getContext('2d');
+      ctx.drawImage(videoElement, 0, 0, 100, 100);
+      let imgData = ctx.getImageData(0, 0, 100, 100).data;
+
+      let sumBrightness = 0;
+      let values = [];
+
+      for (let i = 0; i < imgData.length; i += 4) {
+        let avg = (imgData[i] + imgData[i+1] + imgData[i+2]) / 3;
+        sumBrightness += avg;
+        values.push(avg);
+      }
+
+      let meanBrightness = sumBrightness / values.length;
+
+      // Cálculo de desviación estándar para contraste
+      let variance = values.reduce((acc, val) => acc + Math.pow(val - meanBrightness, 2), 0) / values.length;
+      let stdDevContrast = Math.sqrt(variance);
+
+      imageMetrics.brightness = Math.round(meanBrightness);
+      imageMetrics.contrast = Math.round(stdDevContrast);
+
+      // Evaluación cualitativa de calidad de foto
+      if (meanBrightness > 70 && meanBrightness < 180 && stdDevContrast > 30) {
+        imageMetrics.status = "Óptima (Alta Nitidez)";
+      } else {
+        imageMetrics.status = "Aceptable (Ajustar Luz)";
+      }
+
+      document.getElementById('light_overlay').innerText = `Brillo: ${imageMetrics.brightness}`;
+      document.getElementById('contrast_overlay').innerText = `Contraste: ${imageMetrics.contrast}`;
     }
 
     function captureStep(id, label) {
       if (!currentLandmarks) {
-        alert("Detectando rostro... Por favor colócate de frente a la cámara.");
+        alert("Detectando rostro... Por favor colócate de frente a la cámara con buena iluminación.");
         return;
       }
 
-      // 1. Capturar Fotografía Natural
+      // 1. Foto Natural
       let tempCanvas = document.createElement('canvas');
       tempCanvas.width = videoElement.videoWidth;
       tempCanvas.height = videoElement.videoHeight;
@@ -277,7 +365,7 @@
       tempCtx.drawImage(videoElement, 0, 0);
       let naturalData = tempCanvas.toDataURL('image/jpeg', 0.85);
 
-      // 2. Capturar Fotografía con Malla Triangulada
+      // 2. Foto con Malla Renderizada
       let meshCanvas = document.createElement('canvas');
       meshCanvas.width = videoElement.videoWidth;
       meshCanvas.height = videoElement.videoHeight;
@@ -286,7 +374,13 @@
       meshCtx.drawImage(canvasElement, 0, 0);
       let meshData = meshCanvas.toDataURL('image/jpeg', 0.85);
 
-      capturedShots[id] = { label: label, natural: naturalData, mesh: meshData, landmarks: currentLandmarks };
+      capturedShots[id] = { 
+        label: label, 
+        natural: naturalData, 
+        mesh: meshData, 
+        landmarks: currentLandmarks,
+        quality: { ...imageMetrics }
+      };
 
       let btn = document.getElementById(`btnCap${id}`);
       btn.innerText = `✓ ${label}`;
@@ -299,7 +393,7 @@
       }
     }
 
-    // Cálculo dinámico de métricas vectoriales mediante Landmarks
+    // Cálculo dinámico de métricas vectoriales reales
     function calculateVectorMetrics(lm) {
       if (!lm) {
         return {
@@ -310,14 +404,14 @@
         };
       }
 
-      // 1. Inclinación Cantal (Ojos)
+      // Inclinación Cantal Reales
       const rightEyeOuter = lm[33];
       const leftEyeOuter = lm[263];
       const dy = Math.abs(leftEyeOuter.y - rightEyeOuter.y);
       const dx = Math.abs(leftEyeOuter.x - rightEyeOuter.x);
       const cantalAngle = (Math.atan2(dy, dx) * (180 / Math.PI)).toFixed(1);
 
-      // 2. Ratio Facial (Ancho Pómulos / Mentón-Glabela)
+      // Ratio Cigomático
       const zygomaticLeft = lm[234];
       const zygomaticRight = lm[454];
       const faceWidth = Math.hypot(zygomaticRight.x - zygomaticLeft.x, zygomaticRight.y - zygomaticLeft.y);
@@ -327,7 +421,7 @@
       const faceHeight = Math.hypot(chin.x - glabella.x, chin.y - glabella.y);
       const ratio = (faceWidth / (faceHeight || 1)).toFixed(2);
 
-      // 3. Tercios
+      // Tercios Faciales
       const subnasale = lm[2];
       const tSuperior = Math.abs(glabella.y - lm[70].y);
       const tMedio = Math.abs(subnasale.y - glabella.y);
@@ -338,7 +432,7 @@
       const mPerc = ((tMedio / totalH) * 100).toFixed(1);
       const iPerc = ((tInferior / totalH) * 100).toFixed(1);
 
-      // 4. Desviación de Simetría
+      // Simetría Bilateral
       const leftCheek = lm[116];
       const rightCheek = lm[345];
       const devPx = (Math.abs(leftCheek.y - rightCheek.y) * 100).toFixed(1);
@@ -351,7 +445,7 @@
       };
     }
 
-    // Estructura de Matriz Biométrica en Tabla (4 Columnas)
+    // Tabla Resumen Morfométrica (4 Columnas)
     function getSummaryTableData() {
       const lm = capturedShots[1] ? capturedShots[1].landmarks : null;
       const metrics = calculateVectorMetrics(lm);
@@ -397,16 +491,16 @@
       ];
     }
 
-    // Lista Exhaustiva de Diagnósticos Detallados
+    // Lista Exhaustiva de Diagnósticos Detallados con "Por qué"
     function getExhaustiveDiagnostics() {
       const isFemale = document.querySelector('input[name="genderSelect"]:checked').value === 'female';
-      const age = parseInt(document.getElementById('ageInput').value) || 25;
+      const q = capturedShots[1] ? capturedShots[1].quality : imageMetrics;
 
       return [
         {
-          title: "Calidad de la Piel",
-          class: "Claridad Saludable",
-          why: "Ausencia de inflamación activa. El tono es constante en todo el rostro, proyectando orden biológico."
+          title: "Calidad de la Piel y Captura",
+          class: `Claridad Saludable (${q.status})`,
+          why: `Ausencia de inflamación activa. Tono constante. Brillo registrado: ${q.brightness}, Contraste: ${q.contrast}.`
         },
         {
           title: "Forma del Cráneo",
@@ -565,7 +659,7 @@
       doc.setFont("helvetica", "normal");
       doc.text(`Fecha: ${dateStr}   |   Sujeto: ${gender} (${age} años)   |   Modo: ${mode.toUpperCase()}`, 14, 22);
 
-      // Galería de la Toma Principal
+      // Galería Principal
       if (capturedShots[1]) {
         doc.addImage(capturedShots[1].natural, 'JPEG', 14, 26, 88, 48);
         doc.addImage(capturedShots[1].mesh, 'JPEG', 106, 26, 88, 48);
@@ -576,7 +670,7 @@
         doc.text("Fotografía con Malla Triangulada", 106, 77);
       }
 
-      // TABLA RESUMEN MORFOMÉTRICA (4 Columnas)
+      // TABLA RESUMEN MORFOMÉTRICA
       doc.setTextColor(59, 130, 246);
       doc.setFontSize(11);
       doc.setFont("helvetica", "bold");
@@ -611,7 +705,7 @@
         }
       });
 
-      // Renderizar restando tomas secundarias si existen
+      // Registro de tomas adicionales
       let currentY = doc.lastAutoTable.finalY + 8;
       const shotKeys = Object.keys(capturedShots).filter(k => k !== "1");
 
@@ -716,8 +810,11 @@
       doc.save(`VisageLab_Expediente_Biometrico_${Date.now()}.pdf`);
     }
 
-    // Inicialización
-    renderButtons();
+    // Cargar cámaras al iniciar la página
+    window.onload = () => {
+      getCameraDevices();
+      renderButtons();
+    };
   </script>
 </body>
 </html>
