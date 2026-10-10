@@ -1,4 +1,4 @@
-// main.js - Controlador de Dispositivo, Permisos HTTPS y Semáforo Clínico (Puntos 1 y 2 Integrados)
+// main.js - Controlador de Dispositivo, Permisos HTTPS y Semáforo Clínico (Puntos 1, 2 y 3 Integrados)
 
 let currentStream = null;
 const videoElement = document.getElementById('webcam');
@@ -113,7 +113,7 @@ async function processVideoFrame() {
   requestAnimationFrame(processVideoFrame);
 }
 
-// Bucle Detección
+// Bucle Detección con Sincronización Dinámica del DOM (Punto 3)
 faceMesh.onResults((results) => {
   canvasCtx.save();
   canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
@@ -121,12 +121,16 @@ faceMesh.onResults((results) => {
 
   if (results.multiFaceLandmarks && results.multiFaceLandmarks.length > 0) {
     const landmarks = results.multiFaceLandmarks[0];
+    
+    // Lectura dinámica desde los inputs del HTML (Género y Edad)
     const selectedGender = document.querySelector('input[name="genderSelect"]:checked')?.value || 'male';
+    const inputAge = parseInt(document.getElementById('ageInput')?.value) || 25;
 
     if (typeof BiometricsModule !== 'undefined') BiometricsModule.init(results, canvasCtx);
     if (typeof ColorimetryModule !== 'undefined') ColorimetryModule.analyze(canvasElement, landmarks);
+    
     if (typeof FacialTraitsModule !== 'undefined') {
-      FacialTraitsModule.analyze(landmarks, canvasElement.width, canvasElement.height, selectedGender);
+      FacialTraitsModule.analyze(landmarks, canvasElement.width, canvasElement.height, selectedGender, inputAge);
     }
 
     evaluateQualitySemaforo(canvasElement, canvasCtx, landmarks);
