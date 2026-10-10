@@ -1,4 +1,4 @@
-// facial-traits.js - Módulo de Evaluación Biométrica y Morfopsicológica con Gradación Fina
+// facial-traits.js - Módulo de Evaluación Biométrica y Morfopsicológica (Versión Estable y Completa)
 
 const FacialTraitsModule = {
   traitsData: null,
@@ -67,7 +67,7 @@ const FacialTraitsModule = {
 
     const evaluatedTraits = [];
 
-    // 1. FORMA DEL ROSTRO (Gradación Extendida)
+    // 1. FORMA DEL ROSTRO
     let faceShapeVal = "";
     if (ratioLW > 1.48) {
       faceShapeVal = "Oblongo / Leptoprosopo Alargado";
@@ -78,7 +78,7 @@ const FacialTraitsModule = {
     } else if (ratioLW > 1.12) {
       faceShapeVal = normFaceWidth > normJawWidth * 1.25 ? "Diamante / Cigomático Dominante" : "Redondo Equilibrado";
     } else {
-      faceShapeVal = "Euriprosopo / Corto y Ancho (Braquicéfalo)";
+      faceShapeVal = "Euriprosopo / Corto y Ancho";
     }
     evaluatedTraits.push({ category: "Forma del Rostro", value: faceShapeVal });
 
@@ -90,9 +90,9 @@ const FacialTraitsModule = {
     } else if (frontoSlopeDeg > 85) {
       foreheadVal = "Levemente Inclinada / Natural";
     } else if (frontoSlopeDeg > 80) {
-      foreheadVal = "Inclinación Moderada (Fugaz Sutil)";
+      foreheadVal = "Inclinación Moderada";
     } else {
-      foreheadVal = "Pronunciadamente Inclinada / Fugaz";
+      foreheadVal = "Pronunciadamente Inclinada";
     }
     evaluatedTraits.push({ category: "Inclinación de la Frente", value: foreheadVal });
 
@@ -110,19 +110,19 @@ const FacialTraitsModule = {
     }
     evaluatedTraits.push({ category: "Arco Superciliar", value: browRidgeVal });
 
-    // 4. INCLINACIÓN DE LOS OJOS (Gradación de 5 niveles)
+    // 4. INCLINACIÓN DE LOS OJOS
     const eyeTiltDeg = ((eyeLeftInner.y - eyeLeftOuter.y) / (normEyeWidthAvg * intercanthalUnit || 1)) * 10;
     let eyeTiltVal = "";
     if (eyeTiltDeg > 4.5) {
-      eyeTiltVal = "Ascendente Pronunciada (Antimongoloide Marcada)";
+      eyeTiltVal = "Ascendente Pronunciada";
     } else if (eyeTiltDeg > 1.5) {
-      eyeTiltVal = "Ascendente Moderada / Almendrada Sutil";
+      eyeTiltVal = "Ascendente Moderada / Almendrada";
     } else if (eyeTiltDeg >= -1.5) {
       eyeTiltVal = "Horizontal / Neutra Simétrica";
     } else if (eyeTiltDeg >= -4.5) {
       eyeTiltVal = "Descendente Leve";
     } else {
-      eyeTiltVal = "Descendente Pronunciada (Mongoloide)";
+      eyeTiltVal = "Descendente Pronunciada";
     }
     evaluatedTraits.push({ category: "Inclinación de los Ojos", value: eyeTiltVal });
 
@@ -140,19 +140,19 @@ const FacialTraitsModule = {
     }
     evaluatedTraits.push({ category: "Profundidad del Ojo", value: eyeDepthVal });
 
-    // 6. ÁNGULO NASOLABIAL (Gradación de 5 niveles)
+    // 6. ÁNGULO NASOLABIAL
     const nasoAngle = angle3D(noseBridge, subnasale, upperLipTop);
     let nasolabialVal = "";
     if (nasoAngle >= 105) {
-      nasolabialVal = "Hiperextendido / Proclive (Muy abierto)";
+      nasolabialVal = "Hiperextendido / Proclive";
     } else if (nasoAngle >= 96) {
-      nasolabialVal = "Levemente Abierto / Perfil Dinámico";
+      nasolabialVal = "Levemente Abierto / Dinámico";
     } else if (nasoAngle >= 90) {
       nasolabialVal = "Normo-posicionado (Recto / Neutro)";
     } else if (nasoAngle >= 82) {
       nasolabialVal = "Levemente Cerrado / Retrusivo";
     } else {
-      nasolabialVal = "Cerrado / Agudo (Soporte columelar marcado)";
+      nasolabialVal = "Cerrado / Agudo";
     }
     evaluatedTraits.push({ category: "Ángulo Nasolabial", value: nasolabialVal });
 
@@ -161,11 +161,11 @@ const FacialTraitsModule = {
     const lipRatio = normLipHeight / (normMouthWidth || 1);
     let lipThicknessVal = "";
     if (lipRatio > 0.42) {
-      lipThicknessVal = "Gruesos / Hipertróficos prominentes";
+      lipThicknessVal = "Gruesos / Hipertróficos";
     } else if (lipRatio > 0.32) {
       lipThicknessVal = "Medios / Carnosos balanceados";
     } else if (lipRatio > 0.22) {
-      lipThicknessVal = "Delgados / Ffinos definidos";
+      lipThicknessVal = "Delgados / Finos definidos";
     } else {
       lipThicknessVal = "Muy delgados / Lineales";
     }
@@ -174,33 +174,33 @@ const FacialTraitsModule = {
     // 8. FORMA DE MANDÍBULA
     let jawShapeVal = "";
     if (normJawWidth > normFaceWidth * 0.84) {
-      jawShapeVal = "Gonion Ancho / Mandíbula Cuadrada Dominante";
+      jawShapeVal = "Mandíbula Cuadrada Dominante";
     } else if (normJawWidth > normFaceWidth * 0.75) {
       jawShapeVal = "Mandíbula Angular Equilibrada";
     } else {
-      jawShapeVal = "Mandíbula Estrecha / Perfil Afilado";
+      jawShapeVal = "Mandíbula Estrecha / Afilada";
     }
     evaluatedTraits.push({ category: "Forma de la Mandíbula", value: jawShapeVal });
 
     // 9. PROMINENCIA DE PÓMULOS
     let cheekboneVal = "";
     if (cheekRatio > 1.30) {
-      cheekboneVal = "Cigomáticos Muy Prominentes / Exaltados";
+      cheekboneVal = "Cigomáticos Muy Prominentes";
     } else if (cheekRatio > 1.18) {
-      cheekboneVal = "Pómulos Definidos de Rango Medio";
+      cheekboneVal = "Pómulos Definidos Medios";
     } else {
-      cheekboneVal = "Cigomáticos Planos / Lineales";
+      cheekboneVal = "Cigomáticos Planos";
     }
     evaluatedTraits.push({ category: "Pómulos (Cigomático)", value: cheekboneVal });
 
     // 10. REGLA DE LOS QUINTOS
     let fifthsVal = "";
     if (fifthRatio >= 0.94 && fifthRatio <= 1.06) {
-      fifthsVal = "Proporción Pentapartita Armónica Ideal";
+      fifthsVal = "Proporción Pentapartita Ideal";
     } else if (fifthRatio < 0.94) {
-      fifthsVal = "Distancia Interocular Estrecha / Concentrada";
+      fifthsVal = "Distancia Interocular Estrecha";
     } else {
-      fifthsVal = "Distancia Interocular Amplia / Hipertelorismo leve";
+      fifthsVal = "Distancia Interocular Amplia";
     }
     evaluatedTraits.push({ category: "Proporción de Quintos", value: fifthsVal });
 
@@ -210,9 +210,9 @@ const FacialTraitsModule = {
     const symmDiff = Math.abs(distL - distR) / (normFaceWidth || 1);
     let symmetryVal = "";
     if (symmDiff < 0.015) {
-      symmetryVal = "Simetría Bilateral de Alta Precisión (< 1.5%)";
+      symmetryVal = "Simetría de Alta Precisión (< 1.5%)";
     } else if (symmDiff < 0.04) {
-      symmetryVal = "Simetría Anatómica Normal / Balanceada";
+      symmetryVal = "Simetría Anatómica Normal";
     } else {
       symmetryVal = "Asimetría Facial Leve Observable";
     }
