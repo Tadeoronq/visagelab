@@ -1,40 +1,172 @@
-// main.js - Semáforo con Filtro Estricto de Sombras, Fondo Neutro y Bloqueo de Captura
+// main.js - Controlador de Dispositivo, Permisos HTTPS y Semáforo Clínico (Con Punto 1 Integrado)
 
-// 1. EVALUACIÓN DE CALIDAD CON UMBRALES CLÍNICOS
+let currentStream = null;
+const videoElement = document.getElementById('webcam');
+const canvasElement = document.getElementById('output_canvas');
+const canvasCtx = canvasElement.getContext('2d', { willReadFrequently: true });
+const cameraSelect = document.getElementById('cameraSelect');
+
+// Configuración MediaPipe
+const faceMesh = new FaceMesh({
+  locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`
+});
+
+faceMesh.setOptions({
+  maxNumFaces: 1,
+  refineLandmarks: true,
+  minDetectionConfidence: 0.6,
+  minTrackingConfidence: 0.6
+});
+
+// Pedir Permisos en GitHub Pages
+async function initCamera() {
+  try {
+    const constraints = {
+      video: {
+        width: { ideal: 1280 },
+        height: { ideal: 720 },
+        facingMode: 'user'
+      }
+    };
+
+    currentStream = await navigator.mediaDevices.getUserMedia(constraints);
+    videoElement.srcObject = currentStream;
+
+    await new Promise((resolve) => {
+      videoElement.onloadedmetadata = () => {
+        videoElement.play();
+        resolve();
+      };
+    });
+
+    canvasElement.width = videoElement.videoWidth || 1280;
+    canvasElement.height = videoElement.videoHeight || 720;
+
+    await populateCameraList();
+    processVideoFrame();
+
+  } catch (err) {
+    console.error("Error al acceder a la cámara:", err);
+    alert("⚠️ Activa el permiso de cámara en el candado 🔒 de la barra de direcciones.");
+  }
+}
+
+async function populateCameraList() {
+  try {
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    const videoDevices = devices.filter(device => device.kind === 'videoinput');
+
+    if (!cameraSelect) return;
+    cameraSelect.innerHTML = '';
+
+    videoDevices.forEach((device, index) => {
+      const option = document.createElement('option');
+      option.value = device.deviceId;
+      option.text = device.label || `Cámara ${index + 1}`;
+      cameraSelect.appendChild(option);
+    });
+  } catch (err) {
+    console.warn("Error al listar dispositivos:", err);
+  }
+}
+
+async function switchCamera(deviceId) {
+  if (currentStream) {
+    currentStream.getTracks().forEach(track => track.stop());
+  }
+
+  const constraints = {
+    video: {
+      deviceId: { exact: deviceId },
+      width: { ideal: 1280 },
+      height: { ideal: 720 }
+    }
+  };
+
+  try {
+    currentStream = await navigator.mediaDevices.getUserMedia(constraints);
+    videoElement.srcObject = currentStream;
+    await videoElement.play();
+
+    canvasElement.width = videoElement.videoWidth;
+    canvasElement.height = videoElement.videoHeight;
+  } catch (e) {
+    console.error("Error al cambiar de cámara:", e);
+  }
+}
+
+if (cameraSelect) {
+  cameraSelect.addEventListener('change', (e) => {
+    if (e.target.value) switchCamera(e.target.value);
+  });
+}
+
+async function processVideoFrame() {
+  if (videoElement.paused || videoElement.ended) return;
+
+  if (canvasElement.width !== videoElement.videoWidth && videoElement.videoWidth > 0) {
+    canvasElement.width = videoElement.videoWidth;
+    canvasElement.height = videoElement.videoHeight;
+  }
+
+  await faceMesh.send({ image: videoElement });
+  requestAnimationFrame(processVideoFrame);
+}
+
+// Bucle Detección
+faceMesh.onResults((results) => {
+  canvasCtx.save();
+  canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+  canvasCtx.drawImage(results.image, 0, 0, canvasElement.width, canvasElement.height);
+
+  if (results.multiFaceLandmarks && results.multiFaceLandmarks.length > 0) {
+    const landmarks = results.multiFaceLandmarks[0];
+    const selectedGender = document.querySelector('input[name="genderSelect"]:checked')?.value || 'male';
+
+    if (typeof BiometricsModule !== 'undefined') BiometricsModule.init(results, canvasCtx);
+    if (typeof ColorimetryModule !== 'undefined') ColorimetryModule.analyze(canvasElement, landmarks);
+    if (typeof FacialTraitsModule !== 'undefined') {
+      FacialTraitsModule.analyze(landmarks, canvasElement.width, canvasElement.height, selectedGender);
+    }
+
+    evaluateQualitySemaforo(canvasElement, canvasCtx, landmarks);
+  }
+  canvasCtx.restore();
+});
+
+// SEMÁFORO DE CALIDAD (CON PUNTO 1: TILT ANGLE EN GRADOS REALES)
 function evaluateQualitySemaforo(canvas, ctx, landmarks) {
-  // A. Inclinación de Cabeza / Pose (Máximo 2° de desviación)
+  // Puntos 33 y 263 (Cantos externos de los ojos)
   const eyeL = landmarks[33];
   const eyeR = landmarks[263];
-  const tiltAngle = Math.abs((eyeL.y - eyeR.y) * 100);
-  const isPoseOk = tiltAngle < 2.0;
+
+  // Cálculo trigonométrico exacto en grados sexagesimales (Punto 1 corregido)
+  const dx = (eyeR.x - eyeL.x) * canvas.width;
+  const dy = (eyeR.y - eyeL.y) * canvas.height;
+  const tiltAngleDeg = Math.abs(Math.atan2(dy, dx) * (180 / Math.PI));
+  
+  const isPoseOk = tiltAngleDeg <= 2.0; // Umbral estricto de 2 grados
   updateStatusDot('dot-pose', isPoseOk);
 
   try {
     const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
 
-    // B. Evaluación de Luz Facial y Sombras Cruzadas
     const isLightOk = checkFacialLightingAndShadows(ctx, landmarks, canvas.width, canvas.height);
     updateStatusDot('dot-light', isLightOk);
 
-    // C. Evaluación de Neutralidad de Fondo (Filtro de Muros Coloreados / Saturados)
     const isBackgroundNeutral = checkBackgroundNeutrality(imgData, canvas.width, canvas.height);
     updateStatusDot('dot-contrast', isBackgroundNeutral);
 
-    // D. Calidad Global (Todas las pruebas deben ser positivas)
     const isQualityOk = isPoseOk && isLightOk && isBackgroundNeutral;
     updateStatusDot('dot-quality', isQualityOk);
 
-    // E. Habilitación / Bloqueo dinámico del botón de captura
-    toggleCaptureButton(isQualityOk);
-
-  } catch (e) {
-    // Si hay restricciones de seguridad en canvas local
-  }
+    if (typeof toggleCaptureButton === 'function') {
+      toggleCaptureButton(isQualityOk);
+    }
+  } catch (e) {}
 }
 
-// 2. ALGORITMO: ANÁLISIS DE SOMBRAS Y SIMETRÍA DE LUZ EN EL ROSTRO
 function checkFacialLightingAndShadows(ctx, landmarks, width, height) {
-  // Puntos clave: 10 (Frente), 117 (Mejilla Izq), 346 (Mejilla Der), 152 (Mentón)
   const points = [10, 117, 346, 152];
   const brightnessValues = [];
 
@@ -55,26 +187,20 @@ function checkFacialLightingAndShadows(ctx, landmarks, width, height) {
 
   if (brightnessValues.length < 4) return false;
 
-  // Brillo promedio aceptable (entre 80 y 200 en escala 0-255)
   const avgBrightness = brightnessValues.reduce((a, b) => a + b, 0) / brightnessValues.length;
-  if (avgBrightness < 80 || avgBrightness > 205) return false;
+  if (avgBrightness < 75 || avgBrightness > 210) return false;
 
-  // Umbral de Sombras: La diferencia máxima entre cualquier zona de la cara no debe superar los 35 puntos
   const maxB = Math.max(...brightnessValues);
   const minB = Math.min(...brightnessValues);
-  const shadowDelta = maxB - minB;
-
-  return shadowDelta <= 35; // Si la diferencia es mayor a 35, hay sombras marcadas
+  return (maxB - minB) <= 38;
 }
 
-// 3. ALGORITMO: ANÁLISIS DE SATURACIÓN DE FONDO (RECHAZO DE MURALES COLORIDOS)
 function checkBackgroundNeutrality(imgData, width, height) {
-  // Muestreo en las 4 esquinas exteriores del lienzo (área de fondo fuera de la cara)
   const sampleRegions = [
-    { x: Math.floor(width * 0.05), y: Math.floor(height * 0.05) }, // Superior Izq
-    { x: Math.floor(width * 0.95), y: Math.floor(height * 0.05) }, // Superior Der
-    { x: Math.floor(width * 0.05), y: Math.floor(height * 0.95) }, // Inferior Izq
-    { x: Math.floor(width * 0.95), y: Math.floor(height * 0.95) }  // Inferior Der
+    { x: Math.floor(width * 0.05), y: Math.floor(height * 0.05) },
+    { x: Math.floor(width * 0.95), y: Math.floor(height * 0.05) },
+    { x: Math.floor(width * 0.05), y: Math.floor(height * 0.95) },
+    { x: Math.floor(width * 0.95), y: Math.floor(height * 0.95) }
   ];
 
   let totalSaturations = [];
@@ -85,7 +211,6 @@ function checkBackgroundNeutrality(imgData, width, height) {
     const g = imgData[idx + 1];
     const b = imgData[idx + 2];
 
-    // Convertir RGB a Saturación HSV
     const max = Math.max(r, g, b);
     const min = Math.min(r, g, b);
     const delta = max - min;
@@ -95,36 +220,17 @@ function checkBackgroundNeutrality(imgData, width, height) {
   });
 
   const avgSaturation = totalSaturations.reduce((a, b) => a + b, 0) / totalSaturations.length;
-
-  // Umbral estricto: Si la saturación promedio del fondo supera el 22% (0.22), es un fondo colorido y se rechaza.
-  return avgSaturation <= 0.22;
+  return avgSaturation <= 0.25;
 }
 
-// 4. ACTUALIZACIÓN VISUAL Y BLOQUEO DEL BOTÓN DE CAPTURA
 function updateStatusDot(elementId, isOk) {
   const dot = document.getElementById(elementId);
   if (!dot) return;
-  
-  if (isOk) {
-    dot.className = "w-2.5 h-2.5 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.8)]";
-  } else {
-    dot.className = "w-2.5 h-2.5 rounded-full bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.8)]";
-  }
+  dot.className = isOk 
+    ? "w-2.5 h-2.5 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.8)]"
+    : "w-2.5 h-2.5 rounded-full bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.8)]";
 }
 
-function toggleCaptureButton(isQualityOk) {
-  const btnCapture = document.getElementById('btnCapture');
-  if (!btnCapture) return;
-
-  if (isQualityOk) {
-    btnCapture.disabled = false;
-    btnCapture.classList.remove('opacity-40', 'cursor-not-allowed', 'bg-slate-700');
-    btnCapture.classList.add('bg-emerald-600', 'hover:bg-emerald-500', 'shadow-emerald-900/30');
-    btnCapture.title = "Condiciones óptimas. Haz clic para capturar.";
-  } else {
-    btnCapture.disabled = true;
-    btnCapture.classList.add('opacity-40', 'cursor-not-allowed', 'bg-slate-700');
-    btnCapture.classList.remove('bg-emerald-600', 'hover:bg-emerald-500', 'shadow-emerald-900/30');
-    btnCapture.title = "Ajusta la iluminación (sin sombras en rostro) y ponte frente a un fondo neutro.";
-  }
-}
+document.addEventListener('DOMContentLoaded', () => {
+  initCamera();
+});
