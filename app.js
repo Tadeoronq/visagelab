@@ -1,4 +1,4 @@
-// app.js - Gestión de Interfaz, Capturas Multiángulo Nativas y Bloqueo de PDF
+// app.js - Gestión de Captura Nativa (Manual & Automática)
 
 window.capturedPhotos = [];
 
@@ -46,7 +46,7 @@ function updateCaptureUI() {
   const currentCount = window.capturedPhotos.length;
 
   if (currentCount < totalRequired) {
-    if (stepText) stepText.innerText = steps[currentCount].name;
+    if (stepText) stepText.innerText = `${steps[currentCount].name} (${currentCount + 1}/${totalRequired})`;
     if (btnExport) {
       btnExport.disabled = true;
       btnExport.classList.add('opacity-50', 'cursor-not-allowed');
@@ -67,35 +67,53 @@ document.querySelectorAll('input[name="analysisMode"]').forEach(radio => {
   });
 });
 
-// CAPTURA FOTOGRÁFICA EN RESOLUCIÓN NATIVA PURA (Evita deformaciones por CSS / Letterboxing)
+// FUNCIÓN CENTRALIZADA DE CAPTURA NATIVA (Usada tanto por el botón manual como por el sensor automático)
+window.triggerPhotoCapture = function(origin = "Manual") {
+  const videoElement = document.getElementById('webcam');
+  const mode = getSelectedMode();
+  const steps = CAPTURE_MODES[mode];
+
+  if (videoElement && window.capturedPhotos.length < steps.length) {
+    // Canvas temporal con la resolución nativa real de la cámara
+    const tempCanvas = document.createElement('canvas');
+    tempCanvas.width = videoElement.videoWidth || 1280;
+    tempCanvas.height = videoElement.videoHeight || 720;
+    
+    const tempCtx = tempCanvas.getContext('2d');
+    tempCtx.drawImage(videoElement, 0, 0, tempCanvas.width, tempCanvas.height);
+    
+    const cleanPhotoData = tempCanvas.toDataURL('image/jpeg', 0.95);
+    const angleInfo = steps[window.capturedPhotos.length];
+
+    window.capturedPhotos.push({
+      label: `${angleInfo.name} [${origin}]`,
+      id: angleInfo.id,
+      image: cleanPhotoData
+    });
+
+    updateCaptureUI();
+
+    // Feedback visual rápido en pantalla de que se tomó la foto
+    const captureBtn = document.getElementById('btnCapture');
+    if (captureBtn) {
+      const originalText = captureBtn.innerHTML;
+      captureBtn.innerHTML = `<span>✨ ¡Foto Capturada (${origin})!</span>`;
+      captureBtn.classList.remove('bg-emerald-600');
+      captureBtn.classList.add('bg-blue-600');
+      setTimeout(() => {
+        captureBtn.innerHTML = originalText;
+        captureBtn.classList.remove('bg-blue-600');
+        captureBtn.classList.add('bg-emerald-600');
+      }, 1200);
+    }
+  }
+};
+
+// Evento Click Manual
 const btnCapture = document.getElementById('btnCapture');
 if (btnCapture) {
   btnCapture.addEventListener('click', () => {
-    const videoElement = document.getElementById('webcam');
-    const mode = getSelectedMode();
-    const steps = CAPTURE_MODES[mode];
-
-    if (videoElement && window.capturedPhotos.length < steps.length) {
-      // Crear canvas temporal con las dimensiones físicas reales del sensor de la cámara
-      const tempCanvas = document.createElement('canvas');
-      tempCanvas.width = videoElement.videoWidth || 1280;
-      tempCanvas.height = videoElement.videoHeight || 720;
-      
-      const tempCtx = tempCanvas.getContext('2d');
-      tempCtx.drawImage(videoElement, 0, 0, tempCanvas.width, tempCanvas.height);
-      
-      // Extraer datos limpios con calidad clínica (0.95)
-      const cleanPhotoData = tempCanvas.toDataURL('image/jpeg', 0.95);
-      const angleInfo = steps[window.capturedPhotos.length];
-
-      window.capturedPhotos.push({
-        label: angleInfo.name,
-        id: angleInfo.id,
-        image: cleanPhotoData
-      });
-
-      updateCaptureUI();
-    }
+    window.triggerPhotoCapture("Manual");
   });
 }
 
