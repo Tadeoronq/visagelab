@@ -1,18 +1,21 @@
-// facial-traits.js - Módulo de Evaluación Biométrica y Morfopsicológica (Escala Normalizada Invariante)
+// facial-traits.js - Módulo de Evaluación Biométrica y Morfopsicológica con Sincronización DOM
 
 const FacialTraitsModule = {
   traitsData: null,
+  currentAge: 25,
+  currentGender: 'male',
 
-  analyze(landmarks, canvasWidth, canvasHeight, gender = 'male') {
+  analyze(landmarks, canvasWidth, canvasHeight, gender = 'male', age = 25) {
     if (!landmarks || landmarks.length < 468) return;
     
-    // Verificar que el módulo taxonómico esté cargado
+    this.currentGender = gender;
+    this.currentAge = age;
+
     if (typeof FacialTaxonomy === 'undefined') {
-      console.error("Error: FacialTaxonomy no está cargado. Asegúrate de incluir facialtaxonomy.js en index.html.");
+      console.error("Error: FacialTaxonomy no está cargado.");
       return;
     }
 
-    // Helper para convertir coordenadas 3D normalizadas de MediaPipe a píxeles de la cámara
     const getPt = (idx) => ({
       x: landmarks[idx].x * canvasWidth,
       y: landmarks[idx].y * canvasHeight,
@@ -29,16 +32,14 @@ const FacialTraitsModule = {
     };
 
     // =========================================================================
-    // 1. CONSTANTE DE NORMALIZACIÓN (UNIDAD RELATIVA INVARIANTE AL ZOOM)
+    // 1. CONSTANTE DE NORMALIZACIÓN (INVARIANTE AL ZOOM / DISTANCIA)
     // =========================================================================
     const eyeLeftInner = getPt(133);
     const eyeRightInner = getPt(362);
     
-    // Distancia Intercantal Interna (Unidad Base = 1.0)
     const intercanthalUnit = dist2D(eyeLeftInner, eyeRightInner);
-    if (intercanthalUnit < 5) return; // Prevenir errores si el rostro está muy lejano
+    if (intercanthalUnit < 5) return;
 
-    // Normaliza cualquier distancia respecto a la unidad intercantal
     const normDist = (p1, p2) => dist2D(p1, p2) / intercanthalUnit;
 
     // =========================================================================
@@ -64,7 +65,7 @@ const FacialTraitsModule = {
     const eyebrowLeftInner = getPt(107);
 
     // =========================================================================
-    // 3. MEDIDAS ADIMENSIONALES Y RATIOS
+    // 3. RATIOS E ÍNDICES CEFALOMÉTRICOS
     // =========================================================================
     const normFaceLength = normDist(topHead, chin);
     const normFaceWidth = normDist(leftCheek, rightCheek);
@@ -80,24 +81,24 @@ const FacialTraitsModule = {
 
     // 1. FORMA DEL ROSTRO
     let faceShapeVal = "";
-    if (gender === 'female') {
-      if (ratioLW > 1.45) faceShapeVal = FacialTaxonomy.faceShapeFemale[4]; // Rectangular / Alargada
+    if (this.currentGender === 'female') {
+      if (ratioLW > 1.45) faceShapeVal = FacialTaxonomy.faceShapeFemale[4];
       else if (ratioLW < 1.25) faceShapeVal = normJawWidth > normFaceWidth * 0.85 ? FacialTaxonomy.faceShapeFemale[5] : FacialTaxonomy.faceShapeFemale[3];
       else if (normJawWidth > normFaceWidth * 0.82) faceShapeVal = FacialTaxonomy.faceShapeFemale[5];
-      else if (normFaceWidth > normJawWidth * 1.28) faceShapeVal = FacialTaxonomy.faceShapeFemale[1]; // Corazón
-      else faceShapeVal = FacialTaxonomy.faceShapeFemale[0]; // Ovalada
+      else if (normFaceWidth > normJawWidth * 1.28) faceShapeVal = FacialTaxonomy.faceShapeFemale[1];
+      else faceShapeVal = FacialTaxonomy.faceShapeFemale[0];
     } else {
-      if (ratioLW > 1.45) faceShapeVal = FacialTaxonomy.faceShapeMale[3]; // Rectangular
+      if (ratioLW > 1.45) faceShapeVal = FacialTaxonomy.faceShapeMale[3];
       else if (ratioLW < 1.22) faceShapeVal = normJawWidth > normFaceWidth * 0.85 ? FacialTaxonomy.faceShapeMale[2] : FacialTaxonomy.faceShapeMale[6];
-      else if (normFaceWidth > normJawWidth * 1.3) faceShapeVal = FacialTaxonomy.faceShapeMale[0]; // Diamante
-      else faceShapeVal = FacialTaxonomy.faceShapeMale[1]; // Ovalada
+      else if (normFaceWidth > normJawWidth * 1.3) faceShapeVal = FacialTaxonomy.faceShapeMale[0];
+      else faceShapeVal = FacialTaxonomy.faceShapeMale[1];
     }
     evaluatedTraits.push({ category: "Forma del Rostro", value: faceShapeVal });
 
     // 2. INCLINACIÓN DE LA FRENTE
     const frontoSlopeDeg = angle3D(topHead, glabella, noseBridge);
     let foreheadVal = "";
-    if (gender === 'female') {
+    if (this.currentGender === 'female') {
       if (frontoSlopeDeg > 88) foreheadVal = FacialTaxonomy.foreheadSlopeFemale[0];
       else if (frontoSlopeDeg > 84) foreheadVal = FacialTaxonomy.foreheadSlopeFemale[1];
       else if (frontoSlopeDeg > 80) foreheadVal = FacialTaxonomy.foreheadSlopeFemale[3];
@@ -113,7 +114,7 @@ const FacialTraitsModule = {
     // 3. ARCO SUPERCILIAR
     const normBrowZDiff = (glabella.z - getPt(105).z) / intercanthalUnit;
     let browRidgeVal = "";
-    if (gender === 'female') {
+    if (this.currentGender === 'female') {
       if (normBrowZDiff < 0.05) browRidgeVal = FacialTaxonomy.browRidgeFemale[0];
       else if (normBrowZDiff < 0.12) browRidgeVal = FacialTaxonomy.browRidgeFemale[1];
       else browRidgeVal = FacialTaxonomy.browRidgeFemale[4];
@@ -166,7 +167,7 @@ const FacialTraitsModule = {
 
     // 8. FORMA DE MANDÍBULA
     let jawShapeVal = "";
-    if (gender === 'female') {
+    if (this.currentGender === 'female') {
       if (normJawWidth < normFaceWidth * 0.72) jawShapeVal = FacialTaxonomy.jawShapeFemale[0];
       else if (normJawWidth < normFaceWidth * 0.78) jawShapeVal = FacialTaxonomy.jawShapeFemale[2];
       else if (normJawWidth < normFaceWidth * 0.84) jawShapeVal = FacialTaxonomy.jawShapeFemale[3];
