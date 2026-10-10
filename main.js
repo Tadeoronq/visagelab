@@ -1,7 +1,6 @@
-// main.js - Control Avanzado de Cámaras (Frontal/Trasera) y Captura Automática por Semáforo
+// main.js - Corrección del bloqueo de "Buscando cámaras..." y flujo estable de video
 
 let currentStream = null;
-let currentFacingMode = 'user'; // 'user' (frontal) o 'environment' (trasera)
 let qualityStableTimer = null;
 let hasAutoCaptured = false;
 
@@ -22,7 +21,7 @@ faceMesh.setOptions({
   minTrackingConfidence: 0.6
 });
 
-// Inicialización de Cámara con soporte inteligente Móvil/PC
+// Inicialización Robusta del Stream de Cámara
 async function initCamera(constraintSettings = { facingMode: 'user' }) {
   try {
     if (currentStream) {
@@ -30,52 +29,60 @@ async function initCamera(constraintSettings = { facingMode: 'user' }) {
     }
 
     const constraints = {
-      video: {
-        ...constraintSettings,
-        width: { ideal: 1280 },
-        height: { ideal: 720 }
-      }
+      video: typeof constraintSettings === 'string' 
+        ? { deviceId: { exact: constraintSettings } }
+        : { ...constraintSettings, width: { ideal: 1280 }, height: { ideal: 720 } }
     };
 
     currentStream = await navigator.mediaDevices.getUserMedia(constraints);
     videoElement.srcObject = currentStream;
 
-    await new Promise((resolve) => {
+    await new Promise((resolve, reject) => {
       videoElement.onloadedmetadata = () => {
-        videoElement.play();
-        resolve();
+        videoElement.play().then(resolve).catch(reject);
       };
+      // Timeout de seguridad por si el evento tarda en móviles
+      setTimeout(resolve, 1500);
     });
 
     canvasElement.width = videoElement.videoWidth || 1280;
     canvasElement.height = videoElement.videoHeight || 720;
 
+    // Poblar cámaras DESPUÉS de tener el permiso concedido (vital para móviles)
     await populateCameraList();
     processVideoFrame();
 
   } catch (err) {
-    console.error("Error al acceder a la cámara:", err);
-    // Fallback genérico si falla el constraint específico
+    console.error("Error crítico al iniciar cámara:", err);
+    // Intento de emergencia con stream genérico
     try {
       currentStream = await navigator.mediaDevices.getUserMedia({ video: true });
       videoElement.srcObject = currentStream;
       await videoElement.play();
+      canvasElement.width = videoElement.videoWidth || 1280;
+      canvasElement.height = videoElement.videoHeight || 720;
       await populateCameraList();
       processVideoFrame();
     } catch (e) {
-      alert("⚠️ Activa el permiso de cámara en el candado 🔒 de la barra de direcciones.");
+      if (cameraSelect) cameraSelect.innerHTML = '<option value="">⚠️ Permiso de cámara denegado</option>';
+      alert("⚠️ Por favor, autoriza el uso de la cámara en la configuración de tu navegador.");
     }
   }
 }
 
-// Listado avanzado de todas las cámaras (Detecta Frontales y Traseras en móviles)
+// Listado seguro de cámaras frontales y traseras
 async function populateCameraList() {
   try {
     const devices = await navigator.mediaDevices.enumerateDevices();
     const videoDevices = devices.filter(device => device.kind === 'videoinput');
 
     if (!cameraSelect) return;
-    cameraSelect.innerHTML = '<option value="">-- Seleccionar Cámara --</option>';
+    cameraSelect.innerHTML = '';
+
+    if (videoDevices.length === 0) {
+      cameraSelect.innerHTML = '<option value="">No se detectaron cámaras</option>';
+      return;
+    }
 
     videoDevices.forEach((device, index) => {
       const option = document.createElement('option');
@@ -84,35 +91,28 @@ async function populateCameraList() {
       let label = device.label || `Cámara ${index + 1}`;
       const lowerLabel = label.toLowerCase();
       
-      // Identificar de forma intuitiva si es frontal o trasera en teléfonos
       if (lowerLabel.includes('front') || lowerLabel.includes('frontal') || lowerLabel.includes('user')) {
-        label = `📱 Frontal (${label})`;
+        label = `📱 Cámara Frontal`;
       } else if (lowerLabel.includes('back') || lowerLabel.includes('trasera') || lowerLabel.includes('rear') || lowerLabel.includes('environment')) {
-        label = `📷 Trasera / Principal (${label})`;
+        label = `📷 Cámara Trasera`;
       }
       
       option.text = label;
       cameraSelect.appendChild(option);
     });
   } catch (err) {
-    console.warn("Error al listar dispositivos:", err);
+    console.warn("Error al enumerar dispositivos:", err);
+    if (cameraSelect) cameraSelect.innerHTML = '<option value="">Cámara Activa (Predeterminada)</option>';
   }
 }
 
-// Cambio de cámara por ID o Selector
-async function switchCamera(targetIdOrConstraint) {
-  hasAutoCaptured = false;
-  if (typeof targetIdOrConstraint === 'string' && targetIdOrConstraint.length > 0) {
-    await initCamera({ deviceId: { exact: targetIdOrConstraint } });
-  } else {
-    await initCamera(targetIdOrConstraint);
-  }
-}
-
+// Selector de cambio de cámara
 if (cameraSelect) {
   cameraSelect.addEventListener('change', (e) => {
-    if (e.target.value) {
-      switchCamera(e.target.value);
+    const selectedId = e.target.value;
+    if (selectedId) {
+      hasAutoCaptured = false;
+      initCamera(selectedId);
     }
   });
 }
@@ -129,7 +129,7 @@ async function processVideoFrame() {
   requestAnimationFrame(processVideoFrame);
 }
 
-// Bucle Detección y Sincronización DOM
+// Bucle MediaPipe y Sincronización DOM
 faceMesh.onResults((results) => {
   canvasCtx.save();
   canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
@@ -150,13 +150,12 @@ faceMesh.onResults((results) => {
 
     evaluateQualitySemaforo(canvasElement, canvasCtx, landmarks);
   } else {
-    // Si no hay rostro, reiniciamos el temporizador automático
     resetAutoCaptureTimer();
   }
   canvasCtx.restore();
 });
 
-// SEMÁFORO DE CALIDAD Y GESTIÓN DE CAPTURA AUTOMÁTICA / MANUAL
+// Semáforo de Calidad y Captura Automática (1.5s en verde)
 function evaluateQualitySemaforo(canvas, ctx, landmarks) {
   const eyeL = landmarks[33];
   const eyeR = landmarks[263];
@@ -184,15 +183,15 @@ function evaluateQualitySemaforo(canvas, ctx, landmarks) {
       toggleCaptureButton(isQualityOk);
     }
 
-    // GESTIÓN DE CAPTURA AUTOMÁTICA (Si todo está en verde durante 1.5s seguidos)
+    // Captura Automática al cumplirse la estabilidad
     if (isQualityOk && !hasAutoCaptured) {
       if (!qualityStableTimer) {
         qualityStableTimer = setTimeout(() => {
           if (typeof triggerPhotoCapture === 'function' && !hasAutoCaptured) {
             hasAutoCaptured = true;
-            triggerPhotoCapture("Automática (Estabilidad Óptima)");
+            triggerPhotoCapture("Automática (Estabilidad)");
           }
-        }, 1500); // 1.5 segundos de estabilidad perfecta
+        }, 1500);
       }
     } else {
       resetAutoCaptureTimer();
