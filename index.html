@@ -1,159 +1,291 @@
-<!DOCTYPE html>
-<html lang="es">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>VisageLab - Biometría & Colorimetría</title>
-  
-  <!-- Estilos y Librerías Externas -->
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js" crossorigin="anonymous"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
-  
-  <link rel="stylesheet" href="styles.css">
-</head>
-<body class="bg-slate-950 text-slate-100 min-h-screen font-sans p-4">
+// main.js - Controlador Definitivo de Dispositivos, Permisos y Semáforo Clínico
 
-  <!-- Encabezado Principal -->
-  <header class="max-w-7xl mx-auto mb-6 flex flex-col md:flex-row justify-between items-center border-b border-slate-800 pb-4 gap-4">
-    <div>
-      <h1 class="text-2xl font-bold text-blue-400">VisageLab <span class="text-xs text-slate-400 font-normal">v2.6 Clinical</span></h1>
-      <p class="text-xs text-slate-500">Diagnóstico Biométrico & Colorimetría Fotométrica</p>
-    </div>
+let currentStream = null;
+let qualityStableTimer = null;
+let hasAutoCaptured = false;
 
-    <!-- Controles del Sujeto y Dispositivos -->
-    <div class="flex flex-wrap items-center gap-3">
-      <!-- Selector de Sexo -->
-      <div class="flex items-center bg-slate-900 border border-slate-700 rounded-lg p-1 text-xs">
-        <label class="flex items-center gap-1 px-2 py-1 rounded cursor-pointer hover:bg-slate-800">
-          <input type="radio" name="genderSelect" value="male" checked class="text-blue-600 focus:ring-blue-500">
-          <span>Hombre</span>
-        </label>
-        <label class="flex items-center gap-1 px-2 py-1 rounded cursor-pointer hover:bg-slate-800">
-          <input type="radio" name="genderSelect" value="female" class="text-rose-500 focus:ring-rose-500">
-          <span>Mujer</span>
-        </label>
-      </div>
+const videoElement = document.getElementById('webcam');
+const canvasElement = document.getElementById('output_canvas');
+const canvasCtx = canvasElement.getContext('2d', { willReadFrequently: true });
+const cameraSelect = document.getElementById('cameraSelect');
 
-      <!-- Campo de Edad -->
-      <div class="flex items-center bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-xs gap-1">
-        <span class="text-slate-400">Edad:</span>
-        <input type="number" id="ageInput" value="25" min="1" max="120" class="w-12 bg-transparent text-slate-200 outline-none font-bold text-center">
-      </div>
+// Configuración MediaPipe
+const faceMesh = new FaceMesh({
+  locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`
+});
 
-      <!-- Selector Dinámico de Cámara -->
-      <select id="cameraSelect" class="bg-slate-900 border border-slate-700 text-xs text-slate-200 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 outline-none">
-        <option value="">Buscando cámaras...</option>
-      </select>
+faceMesh.setOptions({
+  maxNumFaces: 1,
+  refineLandmarks: true,
+  minDetectionConfidence: 0.6,
+  minTrackingConfidence: 0.6
+});
 
-      <!-- Botón de Exportación PDF -->
-      <button id="btnExportPDF" class="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-lg font-medium transition-all text-xs flex items-center gap-2 opacity-50 cursor-not-allowed" disabled>
-        <span>📄 Exportar Expediente PDF</span>
-      </button>
-    </div>
-  </header>
+// Inicialización Robusta del Stream de Cámara
+async function initCamera(constraintSettings = { facingMode: 'user' }) {
+  try {
+    if (currentStream) {
+      currentStream.getTracks().forEach(track => track.stop());
+    }
 
-  <!-- Selección del Modo de Diagnóstico -->
-  <section class="max-w-7xl mx-auto mb-6 grid grid-cols-1 md:grid-cols-3 gap-4">
-    <label class="cursor-pointer bg-slate-900 border border-blue-500/50 p-3 rounded-xl flex items-center justify-between hover:bg-slate-850 transition">
-      <div class="flex items-center gap-3">
-        <input type="radio" name="analysisMode" value="express" checked class="text-blue-600 focus:ring-blue-500">
-        <div>
-          <p class="text-sm font-semibold text-blue-400">Análisis Express</p>
-          <p class="text-[11px] text-slate-400">2 Capturas: Frontal + Perfil</p>
-        </div>
-      </div>
-      <span class="text-[10px] bg-blue-500/10 text-blue-400 px-2 py-0.5 rounded border border-blue-500/20 font-bold">Activo</span>
-    </label>
+    const constraints = {
+      video: typeof constraintSettings === 'string' 
+        ? { deviceId: { exact: constraintSettings } }
+        : { ...constraintSettings, width: { ideal: 1280 }, height: { ideal: 720 } }
+    };
 
-    <label class="cursor-pointer bg-slate-900 border border-slate-800 p-3 rounded-xl flex items-center justify-between hover:bg-slate-850 transition opacity-80">
-      <div class="flex items-center gap-3">
-        <input type="radio" name="analysisMode" value="full" class="text-blue-600 focus:ring-blue-500">
-        <div>
-          <p class="text-sm font-semibold text-slate-200">Análisis Completo</p>
-          <p class="text-[11px] text-slate-400">6 Capturas Multiángulo</p>
-        </div>
-      </div>
-    </label>
+    currentStream = await navigator.mediaDevices.getUserMedia(constraints);
+    videoElement.srcObject = currentStream;
 
-    <div class="bg-slate-900/50 border border-slate-800/50 p-3 rounded-xl flex items-center justify-between opacity-50 cursor-not-allowed">
-      <div class="flex items-center gap-3">
-        <input type="radio" name="analysisMode" value="body" disabled class="text-slate-600">
-        <div>
-          <p class="text-sm font-semibold text-slate-400">Análisis Corporal</p>
-          <p class="text-[11px] text-slate-500">Morfología Corporal</p>
-        </div>
-      </div>
-      <span class="text-[10px] bg-amber-500/10 text-amber-400 px-2 py-0.5 rounded border border-amber-500/20">Próximamente</span>
-    </div>
-  </section>
+    await new Promise((resolve, reject) => {
+      videoElement.onloadedmetadata = () => {
+        videoElement.play().then(resolve).catch(reject);
+      };
+      setTimeout(resolve, 1500);
+    });
 
-  <!-- Panel Principal de Diagnóstico -->
-  <main class="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-6">
-    
-    <!-- Visor de Cámara -->
-    <section class="lg:col-span-2 bg-slate-900 rounded-xl p-4 border border-slate-800 flex flex-col items-center justify-center relative">
-      <video id="webcam" class="hidden" autoplay playsinline muted></video>
+    canvasElement.width = videoElement.videoWidth || 1280;
+    canvasElement.height = videoElement.videoHeight || 720;
+
+    await populateCameraList();
+    processVideoFrame();
+
+  } catch (err) {
+    console.error("Error crítico al iniciar cámara:", err);
+    try {
+      currentStream = await navigator.mediaDevices.getUserMedia({ video: true });
+      videoElement.srcObject = currentStream;
+      await videoElement.play();
+      canvasElement.width = videoElement.videoWidth || 1280;
+      canvasElement.height = videoElement.videoHeight || 720;
+      await populateCameraList();
+      processVideoFrame();
+    } catch (e) {
+      if (cameraSelect) cameraSelect.innerHTML = '<option value="">⚠️ Permiso de cámara denegado</option>';
+      alert("⚠️ Por favor, autoriza el uso de la cámara en la configuración de tu navegador.");
+    }
+  }
+}
+
+// Listado seguro de cámaras frontales y traseras
+async function populateCameraList() {
+  try {
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    const videoDevices = devices.filter(device => device.kind === 'videoinput');
+
+    if (!cameraSelect) return;
+    cameraSelect.innerHTML = '';
+
+    if (videoDevices.length === 0) {
+      cameraSelect.innerHTML = '<option value="">No se detectaron cámaras</option>';
+      return;
+    }
+
+    videoDevices.forEach((device, index) => {
+      const option = document.createElement('option');
+      option.value = device.deviceId;
       
-      <div class="canvas-container shadow-2xl border border-slate-800 w-full overflow-hidden rounded-lg bg-black">
-        <canvas id="output_canvas" class="w-full h-auto block"></canvas>
-      </div>
+      let label = device.label || `Cámara ${index + 1}`;
+      const lowerLabel = label.toLowerCase();
+      
+      if (lowerLabel.includes('front') || lowerLabel.includes('frontal') || lowerLabel.includes('user')) {
+        label = `📱 Cámara Frontal`;
+      } else if (lowerLabel.includes('back') || lowerLabel.includes('trasera') || lowerLabel.includes('rear') || lowerLabel.includes('environment')) {
+        label = `📷 Cámara Trasera`;
+      }
+      
+      option.text = label;
+      cameraSelect.appendChild(option);
+    });
+  } catch (err) {
+    console.warn("Error al enumerar dispositivos:", err);
+    if (cameraSelect) cameraSelect.innerHTML = '<option value="">Cámara Activa (Predeterminada)</option>';
+  }
+}
 
-      <!-- Botón de Captura Fotográfica -->
-      <div class="mt-4 flex justify-center items-center w-full gap-4">
-        <button id="btnCapture" class="bg-emerald-600 hover:bg-emerald-500 text-white px-6 py-2.5 rounded-xl font-bold text-sm shadow-lg shadow-emerald-900/30 transition-all flex items-center gap-2">
-          <span>📸 Capturar Foto (<span id="captureStepText">Foto 1: Frontal</span>)</span>
-        </button>
-      </div>
+// Selector de cambio de cámara
+if (cameraSelect) {
+  cameraSelect.addEventListener('change', (e) => {
+    const selectedId = e.target.value;
+    if (selectedId) {
+      hasAutoCaptured = false;
+      initCamera(selectedId);
+    }
+  });
+}
 
-      <!-- Semáforo de Calidad -->
-      <div class="w-full mt-4 bg-slate-950 p-3 rounded-lg border border-slate-800 grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
-        <div id="status-light" class="flex items-center gap-2 p-1.5 rounded bg-slate-900 border border-slate-800">
-          <span class="w-2.5 h-2.5 rounded-full bg-slate-600" id="dot-light"></span>
-          <span class="text-slate-300">Luz / Iluminación</span>
-        </div>
-        <div id="status-contrast" class="flex items-center gap-2 p-1.5 rounded bg-slate-900 border border-slate-800">
-          <span class="w-2.5 h-2.5 rounded-full bg-slate-600" id="dot-contrast"></span>
-          <span class="text-slate-300">Contraste Fondo</span>
-        </div>
-        <div id="status-pose" class="flex items-center gap-2 p-1.5 rounded bg-slate-900 border border-slate-800">
-          <span class="w-2.5 h-2.5 rounded-full bg-slate-600" id="dot-pose"></span>
-          <span class="text-slate-300">Inclinación Cabeza</span>
-        </div>
-        <div id="status-quality" class="flex items-center gap-2 p-1.5 rounded bg-slate-900 border border-slate-800">
-          <span class="w-2.5 h-2.5 rounded-full bg-slate-600" id="dot-quality"></span>
-          <span class="text-slate-300">Calidad Foto</span>
-        </div>
-      </div>
-    </section>
+async function processVideoFrame() {
+  if (videoElement.paused || videoElement.ended) return;
 
-    <!-- Panel Lateral de Resultados -->
-    <aside class="space-y-6">
-      <div class="bg-slate-900 rounded-xl p-4 border border-slate-800">
-        <h2 class="text-md font-semibold text-blue-300 mb-3 border-b border-slate-800 pb-2">Colorimetría Extendida</h2>
-        <div id="colorimetry-data" class="text-xs space-y-2 text-slate-300">
-          <p class="text-slate-500 italic">Iniciando lectura fotométrica...</p>
-        </div>
-      </div>
+  if (canvasElement.width !== videoElement.videoWidth && videoElement.videoWidth > 0) {
+    canvasElement.width = videoElement.videoWidth;
+    canvasElement.height = videoElement.videoHeight;
+  }
 
-      <div class="bg-slate-900 rounded-xl p-4 border border-slate-800">
-        <h2 class="text-md font-semibold text-amber-300 mb-3 border-b border-slate-800 pb-2">Taxonomía & Biometría</h2>
-        <div id="traits-list" class="text-xs space-y-1 max-h-[350px] overflow-y-auto pr-1">
-          <p class="text-slate-500 italic">Esperando detección de rostro...</p>
-        </div>
-      </div>
-    </aside>
-  </main>
+  await faceMesh.send({ image: videoElement });
+  requestAnimationFrame(processVideoFrame);
+}
 
-  <!-- NOMBRES CORREGIDOS COINCIDIENDO EXACTAMENTE CON TU REPOSITORIO EN GITHUB -->
-  <script src="facial-taxonomy.js"></script>
-  <script src="colorimetry.js"></script>
-  <script src="biometrics.js"></script>
-  <script src="facial-traits.js"></script>
-  <script src="pdf-generator.js"></script>
-  <script src="app.js"></script>
-</body>
-</html>
+// Bucle MediaPipe y Sincronización DOM
+faceMesh.onResults((results) => {
+  canvasCtx.save();
+  canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+  canvasCtx.drawImage(results.image, 0, 0, canvasElement.width, canvasElement.height);
+
+  if (results.multiFaceLandmarks && results.multiFaceLandmarks.length > 0) {
+    const landmarks = results.multiFaceLandmarks[0];
+    
+    const selectedGender = document.querySelector('input[name="genderSelect"]:checked')?.value || 'male';
+    const inputAge = parseInt(document.getElementById('ageInput')?.value) || 25;
+
+    if (typeof BiometricsModule !== 'undefined') BiometricsModule.init(results, canvasCtx);
+    if (typeof ColorimetryModule !== 'undefined') ColorimetryModule.analyze(canvasElement, landmarks);
+    
+    if (typeof FacialTraitsModule !== 'undefined') {
+      FacialTraitsModule.analyze(landmarks, canvasElement.width, canvasElement.height, selectedGender, inputAge);
+    }
+
+    evaluateQualitySemaforo(canvasElement, canvasCtx, landmarks);
+  } else {
+    resetAutoCaptureTimer();
+  }
+  canvasCtx.restore();
+});
+
+// Semáforo de Calidad y Captura Automática (1.5s en verde)
+function evaluateQualitySemaforo(canvas, ctx, landmarks) {
+  const eyeL = landmarks[33];
+  const eyeR = landmarks[263];
+
+  const dx = (eyeR.x - eyeL.x) * canvas.width;
+  const dy = (eyeR.y - eyeL.y) * canvas.height;
+  const tiltAngleDeg = Math.abs(Math.atan2(dy, dx) * (180 / Math.PI));
+  
+  const isPoseOk = tiltAngleDeg <= 2.0; 
+  updateStatusDot('dot-pose', isPoseOk);
+
+  try {
+    const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
+
+    const isLightOk = checkFacialLightingAndShadows(ctx, landmarks, canvas.width, canvas.height);
+    updateStatusDot('dot-light', isLightOk);
+
+    const isBackgroundNeutral = checkBackgroundNeutrality(imgData, canvas.width, canvas.height);
+    updateStatusDot('dot-contrast', isBackgroundNeutral);
+
+    const isQualityOk = isPoseOk && isLightOk && isBackgroundNeutral;
+    updateStatusDot('dot-quality', isQualityOk);
+
+    if (typeof toggleCaptureButton === 'function') {
+      toggleCaptureButton(isQualityOk);
+    }
+
+    // Captura Automática al cumplirse la estabilidad
+    if (isQualityOk && !hasAutoCaptured) {
+      if (!qualityStableTimer) {
+        qualityStableTimer = setTimeout(() => {
+          if (typeof triggerPhotoCapture === 'function' && !hasAutoCaptured) {
+            hasAutoCaptured = true;
+            triggerPhotoCapture("Automática (Estabilidad)");
+          }
+        }, 1500);
+      }
+    } else {
+      resetAutoCaptureTimer();
+    }
+
+  } catch (e) {}
+}
+
+function resetAutoCaptureTimer() {
+  if (qualityStableTimer) {
+    clearTimeout(qualityStableTimer);
+    qualityStableTimer = null;
+  }
+}
+
+function checkFacialLightingAndShadows(ctx, landmarks, width, height) {
+  const pLeft = { x: landmarks[133].x * width, y: landmarks[133].y * height };
+  const pRight = { x: landmarks[362].x * width, y: landmarks[362].y * height };
+  const intercanthalUnit = Math.hypot(pLeft.x - pRight.x, pLeft.y - pRight.y);
+
+  if (intercanthalUnit < 5) return false;
+
+  const sampleRadius = Math.max(2, Math.floor(intercanthalUnit * 0.08));
+  const sampleSize = sampleRadius * 2 + 1;
+
+  const points = [10, 117, 346, 152];
+  const brightnessValues = [];
+
+  points.forEach(idx => {
+    const pt = landmarks[idx];
+    if (pt) {
+      const x = Math.floor(pt.x * width);
+      const y = Math.floor(pt.y * height);
+      
+      const sampleX = Math.max(0, x - sampleRadius);
+      const sampleY = Math.max(0, y - sampleRadius);
+      const sampleWidth = Math.min(width - sampleX, sampleSize);
+      const sampleHeight = Math.min(height - sampleY, sampleSize);
+
+      if (sampleWidth > 0 && sampleHeight > 0) {
+        const sample = ctx.getImageData(sampleX, sampleY, sampleWidth, sampleHeight).data;
+        
+        let sum = 0;
+        for (let i = 0; i < sample.length; i += 4) {
+          sum += (sample[i] * 0.299 + sample[i + 1] * 0.587 + sample[i + 2] * 0.114);
+        }
+        brightnessValues.push(sum / (sample.length / 4));
+      }
+    }
+  });
+
+  if (brightnessValues.length < 4) return false;
+
+  const avgBrightness = brightnessValues.reduce((a, b) => a + b, 0) / brightnessValues.length;
+  if (avgBrightness < 75 || avgBrightness > 210) return false;
+
+  const maxB = Math.max(...brightnessValues);
+  const minB = Math.min(...brightnessValues);
+  return (maxB - minB) <= 38;
+}
+
+function checkBackgroundNeutrality(imgData, width, height) {
+  const sampleRegions = [
+    { x: Math.floor(width * 0.12), y: Math.floor(height * 0.12) },
+    { x: Math.floor(width * 0.88), y: Math.floor(height * 0.12) },
+    { x: Math.floor(width * 0.12), y: Math.floor(height * 0.88) },
+    { x: Math.floor(width * 0.88), y: Math.floor(height * 0.88) }
+  ];
+
+  let totalSaturations = [];
+
+  sampleRegions.forEach(pos => {
+    const idx = (pos.y * width + pos.x) * 4;
+    const r = imgData[idx];
+    const g = imgData[idx + 1];
+    const b = imgData[idx + 2];
+
+    const max = Math.max(r, g, b);
+    const min = Math.min(r, g, b);
+    const delta = max - min;
+    const saturation = max === 0 ? 0 : (delta / max);
+
+    totalSaturations.push(saturation);
+  });
+
+  const avgSaturation = totalSaturations.reduce((a, b) => a + b, 0) / totalSaturations.length;
+  return avgSaturation <= 0.25;
+}
+
+function updateStatusDot(elementId, isOk) {
+  const dot = document.getElementById(elementId);
+  if (!dot) return;
+  dot.className = isOk 
+    ? "w-2.5 h-2.5 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.8)]"
+    : "w-2.5 h-2.5 rounded-full bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.8)]";
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  initCamera({ facingMode: 'user' });
+});
