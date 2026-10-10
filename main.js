@@ -1,4 +1,4 @@
-// main.js - Corrección del bloqueo de "Buscando cámaras..." y flujo estable de video
+// main.js - Controlador Definitivo con Protección de Landmarks y Semáforo Clínico
 
 let currentStream = null;
 let qualityStableTimer = null;
@@ -41,20 +41,17 @@ async function initCamera(constraintSettings = { facingMode: 'user' }) {
       videoElement.onloadedmetadata = () => {
         videoElement.play().then(resolve).catch(reject);
       };
-      // Timeout de seguridad por si el evento tarda en móviles
       setTimeout(resolve, 1500);
     });
 
     canvasElement.width = videoElement.videoWidth || 1280;
     canvasElement.height = videoElement.videoHeight || 720;
 
-    // Poblar cámaras DESPUÉS de tener el permiso concedido (vital para móviles)
     await populateCameraList();
     processVideoFrame();
 
   } catch (err) {
     console.error("Error crítico al iniciar cámara:", err);
-    // Intento de emergencia con stream genérico
     try {
       currentStream = await navigator.mediaDevices.getUserMedia({ video: true });
       videoElement.srcObject = currentStream;
@@ -64,7 +61,7 @@ async function initCamera(constraintSettings = { facingMode: 'user' }) {
       await populateCameraList();
       processVideoFrame();
     } catch (e) {
-      if (cameraSelect) cameraSelect.innerHTML = '<option value="">⚠️ Permiso de cámara denegado</option>';
+      if (cameraSelect) cameraSelect.innerHTML = '<option value="">⚠️ Permiso denegado</option>';
       alert("⚠️ Por favor, autoriza el uso de la cámara en la configuración de tu navegador.");
     }
   }
@@ -155,8 +152,18 @@ faceMesh.onResults((results) => {
   canvasCtx.restore();
 });
 
-// Semáforo de Calidad y Captura Automática (1.5s en verde)
+// Semáforo de Calidad con Protección Estricta de Landmarks
 function evaluateQualitySemaforo(canvas, ctx, landmarks) {
+  // Validación de seguridad para evitar pantallas en negro si faltan puntos
+  if (!landmarks || !landmarks[33] || !landmarks[263]) {
+    updateStatusDot('dot-pose', false);
+    updateStatusDot('dot-light', false);
+    updateStatusDot('dot-contrast', false);
+    updateStatusDot('dot-quality', false);
+    if (typeof toggleCaptureButton === 'function') toggleCaptureButton(false);
+    return;
+  }
+
   const eyeL = landmarks[33];
   const eyeR = landmarks[263];
 
@@ -183,7 +190,7 @@ function evaluateQualitySemaforo(canvas, ctx, landmarks) {
       toggleCaptureButton(isQualityOk);
     }
 
-    // Captura Automática al cumplirse la estabilidad
+    // Captura Automática al cumplirse la estabilidad de 1.5s
     if (isQualityOk && !hasAutoCaptured) {
       if (!qualityStableTimer) {
         qualityStableTimer = setTimeout(() => {
@@ -197,7 +204,9 @@ function evaluateQualitySemaforo(canvas, ctx, landmarks) {
       resetAutoCaptureTimer();
     }
 
-  } catch (e) {}
+  } catch (e) {
+    console.warn("Excepción controlada en evaluación de calidad:", e);
+  }
 }
 
 function resetAutoCaptureTimer() {
@@ -208,6 +217,8 @@ function resetAutoCaptureTimer() {
 }
 
 function checkFacialLightingAndShadows(ctx, landmarks, width, height) {
+  if (!landmarks[133] || !landmarks[362]) return false;
+  
   const pLeft = { x: landmarks[133].x * width, y: landmarks[133].y * height };
   const pRight = { x: landmarks[362].x * width, y: landmarks[362].y * height };
   const intercanthalUnit = Math.hypot(pLeft.x - pRight.x, pLeft.y - pRight.y);
