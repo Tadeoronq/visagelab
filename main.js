@@ -1,4 +1,4 @@
-// main.js - Controlador Definitivo con Protección de Landmarks y Semáforo Clínico
+// main.js - Controlador Definitivo de Dispositivos, Permisos y Semáforo Clínico
 
 let currentStream = null;
 let qualityStableTimer = null;
@@ -61,7 +61,7 @@ async function initCamera(constraintSettings = { facingMode: 'user' }) {
       await populateCameraList();
       processVideoFrame();
     } catch (e) {
-      if (cameraSelect) cameraSelect.innerHTML = '<option value="">⚠️ Permiso denegado</option>';
+      if (cameraSelect) cameraSelect.innerHTML = '<option value="">⚠️ Permiso de cámara denegado</option>';
       alert("⚠️ Por favor, autoriza el uso de la cámara en la configuración de tu navegador.");
     }
   }
@@ -152,9 +152,8 @@ faceMesh.onResults((results) => {
   canvasCtx.restore();
 });
 
-// Semáforo de Calidad con Protección Estricta de Landmarks
+// Semáforo de Calidad y Captura Automática con protección estricta de landmarks
 function evaluateQualitySemaforo(canvas, ctx, landmarks) {
-  // Validación de seguridad para evitar pantallas en negro si faltan puntos
   if (!landmarks || !landmarks[33] || !landmarks[263]) {
     updateStatusDot('dot-pose', false);
     updateStatusDot('dot-light', false);
@@ -190,7 +189,7 @@ function evaluateQualitySemaforo(canvas, ctx, landmarks) {
       toggleCaptureButton(isQualityOk);
     }
 
-    // Captura Automática al cumplirse la estabilidad de 1.5s
+    // Captura Automática al cumplirse la estabilidad
     if (isQualityOk && !hasAutoCaptured) {
       if (!qualityStableTimer) {
         qualityStableTimer = setTimeout(() => {
@@ -218,7 +217,7 @@ function resetAutoCaptureTimer() {
 
 function checkFacialLightingAndShadows(ctx, landmarks, width, height) {
   if (!landmarks[133] || !landmarks[362]) return false;
-  
+
   const pLeft = { x: landmarks[133].x * width, y: landmarks[133].y * height };
   const pRight = { x: landmarks[362].x * width, y: landmarks[362].y * height };
   const intercanthalUnit = Math.hypot(pLeft.x - pRight.x, pLeft.y - pRight.y);
