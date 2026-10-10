@@ -1,4 +1,4 @@
-// main.js - Controlador de Dispositivo, Permisos HTTPS y Semáforo Clínico (Puntos 1, 2 y 3 Integrados)
+// main.js - Controlador de Dispositivo, Permisos HTTPS y Semáforo Clínico (Puntos 1, 2, 3 y 4 Integrados)
 
 let currentStream = null;
 const videoElement = document.getElementById('webcam');
@@ -138,7 +138,7 @@ faceMesh.onResults((results) => {
   canvasCtx.restore();
 });
 
-// SEMÁFORO DE CALIDAD (PUNTO 1: TILT ANGLE & PUNTO 2: FONDO NEUTRO SIN LETTERBOXING)
+// SEMÁFORO DE CALIDAD (PUNTOS 1, 2, 3 Y 4 INTEGRADOS)
 function evaluateQualitySemaforo(canvas, ctx, landmarks) {
   // Puntos 33 y 263 (Cantos externos de los ojos)
   const eyeL = landmarks[33];
@@ -155,6 +155,7 @@ function evaluateQualitySemaforo(canvas, ctx, landmarks) {
   try {
     const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
 
+    // Evaluación de luz con muestreo proporcional a la distancia intercantal (Punto 4)
     const isLightOk = checkFacialLightingAndShadows(ctx, landmarks, canvas.width, canvas.height);
     updateStatusDot('dot-light', isLightOk);
 
@@ -171,7 +172,19 @@ function evaluateQualitySemaforo(canvas, ctx, landmarks) {
   } catch (e) {}
 }
 
+// ILUMINACIÓN CON MUESTREO ESCALADO PROPORCIONALMENTE (Punto 4)
 function checkFacialLightingAndShadows(ctx, landmarks, width, height) {
+  // Calcular la unidad intercantal en píxeles (Puntos 133 y 362)
+  const pLeft = { x: landmarks[133].x * width, y: landmarks[133].y * height };
+  const pRight = { x: landmarks[362].x * width, y: landmarks[362].y * height };
+  const intercanthalUnit = Math.hypot(pLeft.x - pRight.x, pLeft.y - pRight.y);
+
+  if (intercanthalUnit < 5) return false;
+
+  // El tamaño de la muestra escala proporcionalmente (aprox. 8% de la distancia entre ojos)
+  const sampleRadius = Math.max(2, Math.floor(intercanthalUnit * 0.08));
+  const sampleSize = sampleRadius * 2 + 1;
+
   const points = [10, 117, 346, 152];
   const brightnessValues = [];
 
@@ -180,13 +193,21 @@ function checkFacialLightingAndShadows(ctx, landmarks, width, height) {
     if (pt) {
       const x = Math.floor(pt.x * width);
       const y = Math.floor(pt.y * height);
-      const sample = ctx.getImageData(Math.max(0, x - 3), Math.max(0, y - 3), 7, 7).data;
       
-      let sum = 0;
-      for (let i = 0; i < sample.length; i += 4) {
-        sum += (sample[i] * 0.299 + sample[i + 1] * 0.587 + sample[i + 2] * 0.114);
+      const sampleX = Math.max(0, x - sampleRadius);
+      const sampleY = Math.max(0, y - sampleRadius);
+      const sampleWidth = Math.min(width - sampleX, sampleSize);
+      const sampleHeight = Math.min(height - sampleY, sampleSize);
+
+      if (sampleWidth > 0 && sampleHeight > 0) {
+        const sample = ctx.getImageData(sampleX, sampleY, sampleWidth, sampleHeight).data;
+        
+        let sum = 0;
+        for (let i = 0; i < sample.length; i += 4) {
+          sum += (sample[i] * 0.299 + sample[i + 1] * 0.587 + sample[i + 2] * 0.114);
+        }
+        brightnessValues.push(sum / (sample.length / 4));
       }
-      brightnessValues.push(sum / (sample.length / 4));
     }
   });
 
