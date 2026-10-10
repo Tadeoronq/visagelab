@@ -1,4 +1,4 @@
-// facial-traits.js - Módulo de Evaluación Biométrica y Morfopsicológica con Sincronización DOM
+// facial-traits.js - Módulo de Evaluación Biométrica y Morfopsicológica con Gradación Fina
 
 const FacialTraitsModule = {
   traitsData: null,
@@ -10,11 +10,6 @@ const FacialTraitsModule = {
     
     this.currentGender = gender;
     this.currentAge = age;
-
-    if (typeof FacialTaxonomy === 'undefined') {
-      console.error("Error: FacialTaxonomy no está cargado.");
-      return;
-    }
 
     const getPt = (idx) => ({
       x: landmarks[idx].x * canvasWidth,
@@ -31,20 +26,15 @@ const FacialTraitsModule = {
       return Math.acos(cosVal) * (180 / Math.PI);
     };
 
-    // =========================================================================
-    // 1. CONSTANTE DE NORMALIZACIÓN (INVARIANTE AL ZOOM / DISTANCIA)
-    // =========================================================================
+    // Unidad de Normalización (Distancia Intercantal)
     const eyeLeftInner = getPt(133);
     const eyeRightInner = getPt(362);
-    
     const intercanthalUnit = dist2D(eyeLeftInner, eyeRightInner);
     if (intercanthalUnit < 5) return;
 
     const normDist = (p1, p2) => dist2D(p1, p2) / intercanthalUnit;
 
-    // =========================================================================
-    // 2. LANDMARKS ANATÓMICOS CLAVE
-    // =========================================================================
+    // Landmarks Anatómicos
     const topHead = getPt(10);
     const glabella = getPt(9);
     const chin = getPt(152);
@@ -64,9 +54,7 @@ const FacialTraitsModule = {
     const eyeRightOuter = getPt(263);
     const eyebrowLeftInner = getPt(107);
 
-    // =========================================================================
-    // 3. RATIOS E ÍNDICES CEFALOMÉTRICOS
-    // =========================================================================
+    // Ratios Cefalométricos
     const normFaceLength = normDist(topHead, chin);
     const normFaceWidth = normDist(leftCheek, rightCheek);
     const normJawWidth = normDist(leftJaw, rightJaw);
@@ -79,119 +67,141 @@ const FacialTraitsModule = {
 
     const evaluatedTraits = [];
 
-    // 1. FORMA DEL ROSTRO
+    // 1. FORMA DEL ROSTRO (Gradación Extendida)
     let faceShapeVal = "";
-    if (this.currentGender === 'female') {
-      if (ratioLW > 1.45) faceShapeVal = FacialTaxonomy.faceShapeFemale[4];
-      else if (ratioLW < 1.25) faceShapeVal = normJawWidth > normFaceWidth * 0.85 ? FacialTaxonomy.faceShapeFemale[5] : FacialTaxonomy.faceShapeFemale[3];
-      else if (normJawWidth > normFaceWidth * 0.82) faceShapeVal = FacialTaxonomy.faceShapeFemale[5];
-      else if (normFaceWidth > normJawWidth * 1.28) faceShapeVal = FacialTaxonomy.faceShapeFemale[1];
-      else faceShapeVal = FacialTaxonomy.faceShapeFemale[0];
+    if (ratioLW > 1.48) {
+      faceShapeVal = "Oblongo / Leptoprosopo Alargado";
+    } else if (ratioLW > 1.38) {
+      faceShapeVal = "Ovalado Balanceado Clásico";
+    } else if (ratioLW > 1.25) {
+      faceShapeVal = normJawWidth > normFaceWidth * 0.82 ? "Rectangular / Cuadrado Suave" : "Ovalado Ancho";
+    } else if (ratioLW > 1.12) {
+      faceShapeVal = normFaceWidth > normJawWidth * 1.25 ? "Diamante / Cigomático Dominante" : "Redondo Equilibrado";
     } else {
-      if (ratioLW > 1.45) faceShapeVal = FacialTaxonomy.faceShapeMale[3];
-      else if (ratioLW < 1.22) faceShapeVal = normJawWidth > normFaceWidth * 0.85 ? FacialTaxonomy.faceShapeMale[2] : FacialTaxonomy.faceShapeMale[6];
-      else if (normFaceWidth > normJawWidth * 1.3) faceShapeVal = FacialTaxonomy.faceShapeMale[0];
-      else faceShapeVal = FacialTaxonomy.faceShapeMale[1];
+      faceShapeVal = "Euriprosopo / Corto y Ancho (Braquicéfalo)";
     }
     evaluatedTraits.push({ category: "Forma del Rostro", value: faceShapeVal });
 
     // 2. INCLINACIÓN DE LA FRENTE
     const frontoSlopeDeg = angle3D(topHead, glabella, noseBridge);
     let foreheadVal = "";
-    if (this.currentGender === 'female') {
-      if (frontoSlopeDeg > 88) foreheadVal = FacialTaxonomy.foreheadSlopeFemale[0];
-      else if (frontoSlopeDeg > 84) foreheadVal = FacialTaxonomy.foreheadSlopeFemale[1];
-      else if (frontoSlopeDeg > 80) foreheadVal = FacialTaxonomy.foreheadSlopeFemale[3];
-      else foreheadVal = FacialTaxonomy.foreheadSlopeFemale[4];
+    if (frontoSlopeDeg > 89) {
+      foreheadVal = "Ortometópica / Vertical Recta";
+    } else if (frontoSlopeDeg > 85) {
+      foreheadVal = "Levemente Inclinada / Natural";
+    } else if (frontoSlopeDeg > 80) {
+      foreheadVal = "Inclinación Moderada (Fugaz Sutil)";
     } else {
-      if (frontoSlopeDeg >= 85) foreheadVal = FacialTaxonomy.foreheadSlopeMale[0];
-      else if (frontoSlopeDeg >= 80) foreheadVal = FacialTaxonomy.foreheadSlopeMale[1];
-      else if (frontoSlopeDeg >= 70) foreheadVal = FacialTaxonomy.foreheadSlopeMale[2];
-      else foreheadVal = FacialTaxonomy.foreheadSlopeMale[3];
+      foreheadVal = "Pronunciadamente Inclinada / Fugaz";
     }
     evaluatedTraits.push({ category: "Inclinación de la Frente", value: foreheadVal });
 
     // 3. ARCO SUPERCILIAR
     const normBrowZDiff = (glabella.z - getPt(105).z) / intercanthalUnit;
     let browRidgeVal = "";
-    if (this.currentGender === 'female') {
-      if (normBrowZDiff < 0.05) browRidgeVal = FacialTaxonomy.browRidgeFemale[0];
-      else if (normBrowZDiff < 0.12) browRidgeVal = FacialTaxonomy.browRidgeFemale[1];
-      else browRidgeVal = FacialTaxonomy.browRidgeFemale[4];
+    if (normBrowZDiff > 0.18) {
+      browRidgeVal = "Toro Supraorbitario Muy Pronunciado";
+    } else if (normBrowZDiff > 0.10) {
+      browRidgeVal = "Prominencia Supraorbitaria Moderada";
+    } else if (normBrowZDiff > 0.04) {
+      browRidgeVal = "Arco Superciliar Definido Sutil";
     } else {
-      if (normBrowZDiff > 0.20) browRidgeVal = FacialTaxonomy.browRidgeMale[0];
-      else if (normBrowZDiff > 0.12) browRidgeVal = FacialTaxonomy.browRidgeMale[1];
-      else if (normBrowZDiff > 0.05) browRidgeVal = FacialTaxonomy.browRidgeMale[2];
-      else browRidgeVal = FacialTaxonomy.browRidgeMale[5];
+      browRidgeVal = "Plano / Suave sin Prominencia Ósea";
     }
     evaluatedTraits.push({ category: "Arco Superciliar", value: browRidgeVal });
 
-    // 4. INCLINACIÓN DE LOS OJOS
+    // 4. INCLINACIÓN DE LOS OJOS (Gradación de 5 niveles)
     const eyeTiltDeg = ((eyeLeftInner.y - eyeLeftOuter.y) / (normEyeWidthAvg * intercanthalUnit || 1)) * 10;
     let eyeTiltVal = "";
-    if (eyeTiltDeg > 5) eyeTiltVal = FacialTaxonomy.eyeTilt[0];
-    else if (eyeTiltDeg >= 2) eyeTiltVal = FacialTaxonomy.eyeTilt[1];
-    else if (eyeTiltDeg >= -1) eyeTiltVal = FacialTaxonomy.eyeTilt[2];
-    else if (eyeTiltDeg >= -3) eyeTiltVal = FacialTaxonomy.eyeTilt[3];
-    else eyeTiltVal = FacialTaxonomy.eyeTilt[4];
+    if (eyeTiltDeg > 4.5) {
+      eyeTiltVal = "Ascendente Pronunciada (Antimongoloide Marcada)";
+    } else if (eyeTiltDeg > 1.5) {
+      eyeTiltVal = "Ascendente Moderada / Almendrada Sutil";
+    } else if (eyeTiltDeg >= -1.5) {
+      eyeTiltVal = "Horizontal / Neutra Simétrica";
+    } else if (eyeTiltDeg >= -4.5) {
+      eyeTiltVal = "Descendente Leve";
+    } else {
+      eyeTiltVal = "Descendente Pronunciada (Mongoloide)";
+    }
     evaluatedTraits.push({ category: "Inclinación de los Ojos", value: eyeTiltVal });
 
     // 5. PROFUNDIDAD DEL OJO
     const normEyeDepthZ = (((eyeLeftInner.z + eyeRightInner.z) / 2) - noseBridge.z) / intercanthalUnit;
     let eyeDepthVal = "";
-    if (normEyeDepthZ < -0.30) eyeDepthVal = FacialTaxonomy.eyeDepth[0];
-    else if (normEyeDepthZ < -0.20) eyeDepthVal = FacialTaxonomy.eyeDepth[1];
-    else if (normEyeDepthZ < -0.08) eyeDepthVal = FacialTaxonomy.eyeDepth[2];
-    else if (normEyeDepthZ <= 0.05) eyeDepthVal = FacialTaxonomy.eyeDepth[3];
-    else eyeDepthVal = FacialTaxonomy.eyeDepth[5];
+    if (normEyeDepthZ < -0.25) {
+      eyeDepthVal = "Hundidos / Profundos en órbita";
+    } else if (normEyeDepthZ < -0.10) {
+      eyeDepthVal = "Semihundidos de Profundidad Media";
+    } else if (normEyeDepthZ <= 0.05) {
+      eyeDepthVal = "Normo-posicionados / Neutros";
+    } else {
+      eyeDepthVal = "Exoftálmicos / Protruyentes";
+    }
     evaluatedTraits.push({ category: "Profundidad del Ojo", value: eyeDepthVal });
 
-    // 6. ÁNGULO NASOLABIAL
+    // 6. ÁNGULO NASOLABIAL (Gradación de 5 niveles)
     const nasoAngle = angle3D(noseBridge, subnasale, upperLipTop);
     let nasolabialVal = "";
-    if (nasoAngle >= 96) nasolabialVal = FacialTaxonomy.nasolabialAngle[1];
-    else if (nasoAngle >= 90) nasolabialVal = FacialTaxonomy.nasolabialAngle[0];
-    else if (nasoAngle >= 80) nasolabialVal = FacialTaxonomy.nasolabialAngle[2];
-    else nasolabialVal = FacialTaxonomy.nasolabialAngle[4];
+    if (nasoAngle >= 105) {
+      nasolabialVal = "Hiperextendido / Proclive (Muy abierto)";
+    } else if (nasoAngle >= 96) {
+      nasolabialVal = "Levemente Abierto / Perfil Dinámico";
+    } else if (nasoAngle >= 90) {
+      nasolabialVal = "Normo-posicionado (Recto / Neutro)";
+    } else if (nasoAngle >= 82) {
+      nasolabialVal = "Levemente Cerrado / Retrusivo";
+    } else {
+      nasolabialVal = "Cerrado / Agudo (Soporte columelar marcado)";
+    }
     evaluatedTraits.push({ category: "Ángulo Nasolabial", value: nasolabialVal });
 
     // 7. GROSOR DE LABIOS
     const normLipHeight = normDist(upperLipTop, lowerLipBottom);
     const lipRatio = normLipHeight / (normMouthWidth || 1);
     let lipThicknessVal = "";
-    if (lipRatio > 0.45) lipThicknessVal = FacialTaxonomy.lipThickness[3];
-    else if (lipRatio > 0.35) lipThicknessVal = FacialTaxonomy.lipThickness[1];
-    else if (lipRatio > 0.25) lipThicknessVal = FacialTaxonomy.lipThickness[0];
-    else lipThicknessVal = FacialTaxonomy.lipThickness[5];
+    if (lipRatio > 0.42) {
+      lipThicknessVal = "Gruesos / Hipertróficos prominentes";
+    } else if (lipRatio > 0.32) {
+      lipThicknessVal = "Medios / Carnosos balanceados";
+    } else if (lipRatio > 0.22) {
+      lipThicknessVal = "Delgados / Ffinos definidos";
+    } else {
+      lipThicknessVal = "Muy delgados / Lineales";
+    }
     evaluatedTraits.push({ category: "Grosor de los Labios", value: lipThicknessVal });
 
     // 8. FORMA DE MANDÍBULA
     let jawShapeVal = "";
-    if (this.currentGender === 'female') {
-      if (normJawWidth < normFaceWidth * 0.72) jawShapeVal = FacialTaxonomy.jawShapeFemale[0];
-      else if (normJawWidth < normFaceWidth * 0.78) jawShapeVal = FacialTaxonomy.jawShapeFemale[2];
-      else if (normJawWidth < normFaceWidth * 0.84) jawShapeVal = FacialTaxonomy.jawShapeFemale[3];
-      else jawShapeVal = FacialTaxonomy.jawShapeFemale[5];
+    if (normJawWidth > normFaceWidth * 0.84) {
+      jawShapeVal = "Gonion Ancho / Mandíbula Cuadrada Dominante";
+    } else if (normJawWidth > normFaceWidth * 0.75) {
+      jawShapeVal = "Mandíbula Angular Equilibrada";
     } else {
-      if (normJawWidth > normFaceWidth * 0.85) jawShapeVal = FacialTaxonomy.jawShapeMale[0];
-      else if (normJawWidth > normFaceWidth * 0.78) jawShapeVal = FacialTaxonomy.jawShapeMale[3];
-      else jawShapeVal = FacialTaxonomy.jawShapeMale[1];
+      jawShapeVal = "Mandíbula Estrecha / Perfil Afilado";
     }
     evaluatedTraits.push({ category: "Forma de la Mandíbula", value: jawShapeVal });
 
     // 9. PROMINENCIA DE PÓMULOS
     let cheekboneVal = "";
-    if (cheekRatio > 1.32) cheekboneVal = FacialTaxonomy.cheekboneProminence[0];
-    else if (cheekRatio > 1.25) cheekboneVal = FacialTaxonomy.cheekboneProminence[1];
-    else if (cheekRatio > 1.18) cheekboneVal = FacialTaxonomy.cheekboneProminence[2];
-    else cheekboneVal = FacialTaxonomy.cheekboneProminence[3];
+    if (cheekRatio > 1.30) {
+      cheekboneVal = "Cigomáticos Muy Prominentes / Exaltados";
+    } else if (cheekRatio > 1.18) {
+      cheekboneVal = "Pómulos Definidos de Rango Medio";
+    } else {
+      cheekboneVal = "Cigomáticos Planos / Lineales";
+    }
     evaluatedTraits.push({ category: "Pómulos (Cigomático)", value: cheekboneVal });
 
     // 10. REGLA DE LOS QUINTOS
     let fifthsVal = "";
-    if (fifthRatio >= 0.95 && fifthRatio <= 1.05) fifthsVal = FacialTaxonomy.fifthProportion[0];
-    else if (fifthRatio < 0.95) fifthsVal = FacialTaxonomy.fifthProportion[1];
-    else fifthsVal = FacialTaxonomy.fifthProportion[2];
+    if (fifthRatio >= 0.94 && fifthRatio <= 1.06) {
+      fifthsVal = "Proporción Pentapartita Armónica Ideal";
+    } else if (fifthRatio < 0.94) {
+      fifthsVal = "Distancia Interocular Estrecha / Concentrada";
+    } else {
+      fifthsVal = "Distancia Interocular Amplia / Hipertelorismo leve";
+    }
     evaluatedTraits.push({ category: "Proporción de Quintos", value: fifthsVal });
 
     // 11. SIMETRÍA BILATERAL
@@ -199,9 +209,13 @@ const FacialTraitsModule = {
     const distR = normDist(rightCheek, noseTip);
     const symmDiff = Math.abs(distL - distR) / (normFaceWidth || 1);
     let symmetryVal = "";
-    if (symmDiff < 0.02) symmetryVal = FacialTaxonomy.facialSymmetry[0];
-    else if (symmDiff < 0.05) symmetryVal = FacialTaxonomy.facialSymmetry[1];
-    else symmetryVal = FacialTaxonomy.facialSymmetry[2];
+    if (symmDiff < 0.015) {
+      symmetryVal = "Simetría Bilateral de Alta Precisión (< 1.5%)";
+    } else if (symmDiff < 0.04) {
+      symmetryVal = "Simetría Anatómica Normal / Balanceada";
+    } else {
+      symmetryVal = "Asimetría Facial Leve Observable";
+    }
     evaluatedTraits.push({ category: "Simetría Facial", value: symmetryVal });
 
     // 12. TERCIOS FACIALES
