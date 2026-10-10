@@ -1,4 +1,4 @@
-// main.js - Controlador de Dispositivo, Permisos HTTPS y Semáforo Clínico (Con Punto 1 Integrado)
+// main.js - Controlador de Dispositivo, Permisos HTTPS y Semáforo Clínico (Puntos 1 y 2 Integrados)
 
 let currentStream = null;
 const videoElement = document.getElementById('webcam');
@@ -134,18 +134,18 @@ faceMesh.onResults((results) => {
   canvasCtx.restore();
 });
 
-// SEMÁFORO DE CALIDAD (CON PUNTO 1: TILT ANGLE EN GRADOS REALES)
+// SEMÁFORO DE CALIDAD (PUNTO 1: TILT ANGLE & PUNTO 2: FONDO NEUTRO SIN LETTERBOXING)
 function evaluateQualitySemaforo(canvas, ctx, landmarks) {
   // Puntos 33 y 263 (Cantos externos de los ojos)
   const eyeL = landmarks[33];
   const eyeR = landmarks[263];
 
-  // Cálculo trigonométrico exacto en grados sexagesimales (Punto 1 corregido)
+  // Cálculo trigonométrico exacto en grados sexagesimales (Punto 1)
   const dx = (eyeR.x - eyeL.x) * canvas.width;
   const dy = (eyeR.y - eyeL.y) * canvas.height;
   const tiltAngleDeg = Math.abs(Math.atan2(dy, dx) * (180 / Math.PI));
   
-  const isPoseOk = tiltAngleDeg <= 2.0; // Umbral estricto de 2 grados
+  const isPoseOk = tiltAngleDeg <= 2.0; 
   updateStatusDot('dot-pose', isPoseOk);
 
   try {
@@ -154,6 +154,7 @@ function evaluateQualitySemaforo(canvas, ctx, landmarks) {
     const isLightOk = checkFacialLightingAndShadows(ctx, landmarks, canvas.width, canvas.height);
     updateStatusDot('dot-light', isLightOk);
 
+    // Muestreo de fondo reajustado al 12% y 88% para evitar bandas negras (Punto 2)
     const isBackgroundNeutral = checkBackgroundNeutrality(imgData, canvas.width, canvas.height);
     updateStatusDot('dot-contrast', isBackgroundNeutral);
 
@@ -195,12 +196,13 @@ function checkFacialLightingAndShadows(ctx, landmarks, width, height) {
   return (maxB - minB) <= 38;
 }
 
+// ALGORITMO DE FONDO NEUTRO CORREGIDO (Evita Letterboxing al 12% - 88%)
 function checkBackgroundNeutrality(imgData, width, height) {
   const sampleRegions = [
-    { x: Math.floor(width * 0.05), y: Math.floor(height * 0.05) },
-    { x: Math.floor(width * 0.95), y: Math.floor(height * 0.05) },
-    { x: Math.floor(width * 0.05), y: Math.floor(height * 0.95) },
-    { x: Math.floor(width * 0.95), y: Math.floor(height * 0.95) }
+    { x: Math.floor(width * 0.12), y: Math.floor(height * 0.12) }, // Superior Izq
+    { x: Math.floor(width * 0.88), y: Math.floor(height * 0.12) }, // Superior Der
+    { x: Math.floor(width * 0.12), y: Math.floor(height * 0.88) }, // Inferior Izq
+    { x: Math.floor(width * 0.88), y: Math.floor(height * 0.88) }  // Inferior Der
   ];
 
   let totalSaturations = [];
