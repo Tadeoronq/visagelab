@@ -152,8 +152,9 @@ faceMesh.onResults((results) => {
   canvasCtx.restore();
 });
 
-// Semáforo de Calidad y Captura Automática con protección estricta de landmarks
+// Semáforo de Calidad y Captura Automática (Protegido contra nulos)
 function evaluateQualitySemaforo(canvas, ctx, landmarks) {
+  // 🛡️ VALIDACIÓN CRÍTICA: Si no hay puntos de los ojos listos, salimos sin congelar nada
   if (!landmarks || !landmarks[33] || !landmarks[263]) {
     updateStatusDot('dot-pose', false);
     updateStatusDot('dot-light', false);
@@ -189,7 +190,7 @@ function evaluateQualitySemaforo(canvas, ctx, landmarks) {
       toggleCaptureButton(isQualityOk);
     }
 
-    // Captura Automática al cumplirse la estabilidad
+    // Captura Automática al cumplirse la estabilidad de 1.5s
     if (isQualityOk && !hasAutoCaptured) {
       if (!qualityStableTimer) {
         qualityStableTimer = setTimeout(() => {
@@ -204,7 +205,7 @@ function evaluateQualitySemaforo(canvas, ctx, landmarks) {
     }
 
   } catch (e) {
-    console.warn("Excepción controlada en evaluación de calidad:", e);
+    console.warn("Excepción controlada:", e);
   }
 }
 
