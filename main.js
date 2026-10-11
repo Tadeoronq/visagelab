@@ -1,13 +1,32 @@
-// main.js - Controlador Definitivo de Dispositivos, Permisos y Semáforo Clínico
+// main.js - Inicialización Blindada del Sistema de Cámara y Semáforo
 
 let currentStream = null;
 let qualityStableTimer = null;
 let hasAutoCaptured = false;
 
-const videoElement = document.getElementById('webcam');
-const canvasElement = document.getElementById('output_canvas');
-const canvasCtx = canvasElement.getContext('2d', { willReadFrequently: true });
-const cameraSelect = document.getElementById('cameraSelect');
+let videoElement, canvasElement, canvasCtx, cameraSelect;
+
+// Inicializar referencias y cámara solo cuando el DOM esté 100% listo
+document.addEventListener('DOMContentLoaded', () => {
+  videoElement = document.getElementById('webcam');
+  canvasElement = document.getElementById('output_canvas');
+  if (canvasElement) {
+    canvasCtx = canvasElement.getContext('2d', { willReadFrequently: true });
+  }
+  cameraSelect = document.getElementById('cameraSelect');
+
+  if (cameraSelect) {
+    cameraSelect.addEventListener('change', (e) => {
+      const selectedId = e.target.value;
+      if (selectedId) {
+        hasAutoCaptured = false;
+        initCamera(selectedId);
+      }
+    });
+  }
+
+  initCamera({ facingMode: 'user' });
+});
 
 // Configuración MediaPipe
 const faceMesh = new FaceMesh({
@@ -21,7 +40,7 @@ faceMesh.setOptions({
   minTrackingConfidence: 0.6
 });
 
-// Inicialización Robusta del Stream de Cámara
+// Inicialización de Cámara con Fallback
 async function initCamera(constraintSettings = { facingMode: 'user' }) {
   try {
     if (currentStream) {
@@ -35,39 +54,41 @@ async function initCamera(constraintSettings = { facingMode: 'user' }) {
     };
 
     currentStream = await navigator.mediaDevices.getUserMedia(constraints);
-    videoElement.srcObject = currentStream;
+    if (videoElement) {
+      videoElement.srcObject = currentStream;
+      await new Promise((resolve) => {
+        videoElement.onloadedmetadata = () => {
+          videoElement.play().catch(e => console.warn(e));
+          resolve();
+        };
+        setTimeout(resolve, 1500);
+      });
 
-    await new Promise((resolve, reject) => {
-      videoElement.onloadedmetadata = () => {
-        videoElement.play().then(resolve).catch(reject);
-      };
-      setTimeout(resolve, 1500);
-    });
-
-    canvasElement.width = videoElement.videoWidth || 1280;
-    canvasElement.height = videoElement.videoHeight || 720;
+      canvasElement.width = videoElement.videoWidth || 1280;
+      canvasElement.height = videoElement.videoHeight || 720;
+    }
 
     await populateCameraList();
     processVideoFrame();
 
   } catch (err) {
-    console.error("Error crítico al iniciar cámara:", err);
+    console.error("Error al iniciar cámara específica, intentando genérica:", err);
     try {
       currentStream = await navigator.mediaDevices.getUserMedia({ video: true });
-      videoElement.srcObject = currentStream;
-      await videoElement.play();
-      canvasElement.width = videoElement.videoWidth || 1280;
-      canvasElement.height = videoElement.videoHeight || 720;
+      if (videoElement) {
+        videoElement.srcObject = currentStream;
+        await videoElement.play();
+        canvasElement.width = videoElement.videoWidth || 1280;
+        canvasElement.height = videoElement.videoHeight || 720;
+      }
       await populateCameraList();
       processVideoFrame();
     } catch (e) {
-      if (cameraSelect) cameraSelect.innerHTML = '<option value="">⚠️ Permiso de cámara denegado</option>';
-      alert("⚠️ Por favor, autoriza el uso de la cámara en la configuración de tu navegador.");
+      alert("⚠️ Permiso de cámara denegado o no disponible en este navegador/dispositivo.");
     }
   }
 }
 
-// Listado seguro de cámaras frontales y traseras
 async function populateCameraList() {
   try {
     const devices = await navigator.mediaDevices.enumerateDevices();
@@ -77,45 +98,31 @@ async function populateCameraList() {
     cameraSelect.innerHTML = '';
 
     if (videoDevices.length === 0) {
-      cameraSelect.innerHTML = '<option value="">No se detectaron cámaras</option>';
+      cameraSelect.innerHTML = '<option value="">No hay cámaras detectadas</option>';
       return;
     }
 
     videoDevices.forEach((device, index) => {
       const option = document.createElement('option');
       option.value = device.deviceId;
-      
       let label = device.label || `Cámara ${index + 1}`;
-      const lowerLabel = label.toLowerCase();
+      const lower = label.toLowerCase();
       
-      if (lowerLabel.includes('front') || lowerLabel.includes('frontal') || lowerLabel.includes('user')) {
+      if (lower.includes('front') || lower.includes('frontal') || lower.includes('user')) {
         label = `📱 Cámara Frontal`;
-      } else if (lowerLabel.includes('back') || lowerLabel.includes('trasera') || lowerLabel.includes('rear') || lowerLabel.includes('environment')) {
+      } else if (lower.includes('back') || lower.includes('trasera') || lower.includes('rear') || lower.includes('environment')) {
         label = `📷 Cámara Trasera`;
       }
-      
       option.text = label;
       cameraSelect.appendChild(option);
     });
   } catch (err) {
-    console.warn("Error al enumerar dispositivos:", err);
-    if (cameraSelect) cameraSelect.innerHTML = '<option value="">Cámara Activa (Predeterminada)</option>';
+    console.warn("No se pudieron listar los dispositivos:", err);
   }
 }
 
-// Selector de cambio de cámara
-if (cameraSelect) {
-  cameraSelect.addEventListener('change', (e) => {
-    const selectedId = e.target.value;
-    if (selectedId) {
-      hasAutoCaptured = false;
-      initCamera(selectedId);
-    }
-  });
-}
-
 async function processVideoFrame() {
-  if (videoElement.paused || videoElement.ended) return;
+  if (!videoElement || videoElement.paused || videoElement.ended) return;
 
   if (canvasElement.width !== videoElement.videoWidth && videoElement.videoWidth > 0) {
     canvasElement.width = videoElement.videoWidth;
@@ -126,21 +133,19 @@ async function processVideoFrame() {
   requestAnimationFrame(processVideoFrame);
 }
 
-// Bucle MediaPipe y Sincronización DOM
 faceMesh.onResults((results) => {
+  if (!canvasCtx) return;
   canvasCtx.save();
   canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
   canvasCtx.drawImage(results.image, 0, 0, canvasElement.width, canvasElement.height);
 
   if (results.multiFaceLandmarks && results.multiFaceLandmarks.length > 0) {
     const landmarks = results.multiFaceLandmarks[0];
-    
     const selectedGender = document.querySelector('input[name="genderSelect"]:checked')?.value || 'male';
     const inputAge = parseInt(document.getElementById('ageInput')?.value) || 25;
 
     if (typeof BiometricsModule !== 'undefined') BiometricsModule.init(results, canvasCtx);
     if (typeof ColorimetryModule !== 'undefined') ColorimetryModule.analyze(canvasElement, landmarks);
-    
     if (typeof FacialTraitsModule !== 'undefined') {
       FacialTraitsModule.analyze(landmarks, canvasElement.width, canvasElement.height, selectedGender, inputAge);
     }
@@ -152,9 +157,7 @@ faceMesh.onResults((results) => {
   canvasCtx.restore();
 });
 
-// Semáforo de Calidad y Captura Automática (Protegido contra nulos)
 function evaluateQualitySemaforo(canvas, ctx, landmarks) {
-  // 🛡️ VALIDACIÓN CRÍTICA: Si no hay puntos de los ojos listos, salimos sin congelar nada
   if (!landmarks || !landmarks[33] || !landmarks[263]) {
     updateStatusDot('dot-pose', false);
     updateStatusDot('dot-light', false);
@@ -166,7 +169,6 @@ function evaluateQualitySemaforo(canvas, ctx, landmarks) {
 
   const eyeL = landmarks[33];
   const eyeR = landmarks[263];
-
   const dx = (eyeR.x - eyeL.x) * canvas.width;
   const dy = (eyeR.y - eyeL.y) * canvas.height;
   const tiltAngleDeg = Math.abs(Math.atan2(dy, dx) * (180 / Math.PI));
@@ -176,7 +178,6 @@ function evaluateQualitySemaforo(canvas, ctx, landmarks) {
 
   try {
     const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
-
     const isLightOk = checkFacialLightingAndShadows(ctx, landmarks, canvas.width, canvas.height);
     updateStatusDot('dot-light', isLightOk);
 
@@ -186,11 +187,8 @@ function evaluateQualitySemaforo(canvas, ctx, landmarks) {
     const isQualityOk = isPoseOk && isLightOk && isBackgroundNeutral;
     updateStatusDot('dot-quality', isQualityOk);
 
-    if (typeof toggleCaptureButton === 'function') {
-      toggleCaptureButton(isQualityOk);
-    }
+    if (typeof toggleCaptureButton === 'function') toggleCaptureButton(isQualityOk);
 
-    // Captura Automática al cumplirse la estabilidad de 1.5s
     if (isQualityOk && !hasAutoCaptured) {
       if (!qualityStableTimer) {
         qualityStableTimer = setTimeout(() => {
@@ -203,10 +201,7 @@ function evaluateQualitySemaforo(canvas, ctx, landmarks) {
     } else {
       resetAutoCaptureTimer();
     }
-
-  } catch (e) {
-    console.warn("Excepción controlada:", e);
-  }
+  } catch (e) {}
 }
 
 function resetAutoCaptureTimer() {
@@ -218,7 +213,6 @@ function resetAutoCaptureTimer() {
 
 function checkFacialLightingAndShadows(ctx, landmarks, width, height) {
   if (!landmarks[133] || !landmarks[362]) return false;
-
   const pLeft = { x: landmarks[133].x * width, y: landmarks[133].y * height };
   const pRight = { x: landmarks[362].x * width, y: landmarks[362].y * height };
   const intercanthalUnit = Math.hypot(pLeft.x - pRight.x, pLeft.y - pRight.y);
@@ -227,7 +221,6 @@ function checkFacialLightingAndShadows(ctx, landmarks, width, height) {
 
   const sampleRadius = Math.max(2, Math.floor(intercanthalUnit * 0.08));
   const sampleSize = sampleRadius * 2 + 1;
-
   const points = [10, 117, 346, 152];
   const brightnessValues = [];
 
@@ -236,7 +229,6 @@ function checkFacialLightingAndShadows(ctx, landmarks, width, height) {
     if (pt) {
       const x = Math.floor(pt.x * width);
       const y = Math.floor(pt.y * height);
-      
       const sampleX = Math.max(0, x - sampleRadius);
       const sampleY = Math.max(0, y - sampleRadius);
       const sampleWidth = Math.min(width - sampleX, sampleSize);
@@ -244,7 +236,6 @@ function checkFacialLightingAndShadows(ctx, landmarks, width, height) {
 
       if (sampleWidth > 0 && sampleHeight > 0) {
         const sample = ctx.getImageData(sampleX, sampleY, sampleWidth, sampleHeight).data;
-        
         let sum = 0;
         for (let i = 0; i < sample.length; i += 4) {
           sum += (sample[i] * 0.299 + sample[i + 1] * 0.587 + sample[i + 2] * 0.114);
@@ -255,7 +246,6 @@ function checkFacialLightingAndShadows(ctx, landmarks, width, height) {
   });
 
   if (brightnessValues.length < 4) return false;
-
   const avgBrightness = brightnessValues.reduce((a, b) => a + b, 0) / brightnessValues.length;
   if (avgBrightness < 75 || avgBrightness > 210) return false;
 
@@ -273,7 +263,6 @@ function checkBackgroundNeutrality(imgData, width, height) {
   ];
 
   let totalSaturations = [];
-
   sampleRegions.forEach(pos => {
     const idx = (pos.y * width + pos.x) * 4;
     const r = imgData[idx];
@@ -284,12 +273,11 @@ function checkBackgroundNeutrality(imgData, width, height) {
     const min = Math.min(r, g, b);
     const delta = max - min;
     const saturation = max === 0 ? 0 : (delta / max);
-
     totalSaturations.push(saturation);
   });
 
   const avgSaturation = totalSaturations.reduce((a, b) => a + b, 0) / totalSaturations.length;
-  return avgSaturation <= 0.25;
+    return avgSaturation <= 0.25;
 }
 
 function updateStatusDot(elementId, isOk) {
@@ -299,7 +287,3 @@ function updateStatusDot(elementId, isOk) {
     ? "w-2.5 h-2.5 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.8)]"
     : "w-2.5 h-2.5 rounded-full bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.8)]";
 }
-
-document.addEventListener('DOMContentLoaded', () => {
-  initCamera({ facingMode: 'user' });
-});
