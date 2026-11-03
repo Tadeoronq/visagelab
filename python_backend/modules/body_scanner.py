@@ -1,10 +1,19 @@
 # Fase 2: Escaneo corporal, postura y ángulos articulares
 import cv2
-import mediapipe as mp
 import numpy as np
+
+# Importación segura de MediaPipe para evitar errores de atributos
+try:
+    import mediapipe as mp
+    MP_AVAILABLE = True
+except ImportError:
+    MP_AVAILABLE = False
 
 class BodyScanner:
     def __init__(self):
+        if not MP_AVAILABLE:
+            raise ImportError("MediaPipe no está instalado correctamente en el entorno virtual.")
+        
         self.mp_pose = mp.solutions.pose
         self.pose = self.mp_pose.Pose(
             static_image_mode=False,
@@ -38,32 +47,27 @@ class BodyScanner:
             landmarks = results.pose_landmarks.landmark
 
             # Extraer coordenadas en píxeles de puntos clave
-            # Hombros: 11 (izq), 12 (der)
-            # Caderas: 23 (izq), 24 (der)
-            # Tobillos: 27 (izq), 28 (der)
             pts = {i: (int(landmarks[i].x * w), int(landmarks[i].y * h)) for i in range(len(landmarks))}
-            
             analysis_result["landmarks_pixel"] = pts
 
-            # 1. Cálculo de Inclinación de Hombros
+            # 1. Cálculo de Inclinación de Hombros (Izquierdo: 11, Derecho: 12)
             if 11 in pts and 12 in pts:
                 dx = pts[12][0] - pts[11][0]
                 dy = pts[12][1] - pts[11][1]
                 shoulder_angle = np.degrees(np.arctan2(dy, dx))
                 analysis_result["shoulder_tilt_deg"] = round(float(shoulder_angle), 2)
 
-            # 2. Cálculo de Inclinación de Cadera
+            # 2. Cálculo de Inclinación de Cadera (Izquierda: 23, Derecha: 24)
             if 23 in pts and 24 in pts:
                 dx_hip = pts[24][0] - pts[23][0]
                 dy_hip = pts[24][1] - pts[23][1]
                 hip_angle = np.degrees(np.arctan2(dy_hip, dx_hip))
                 analysis_result["hip_tilt_deg"] = round(float(hip_angle), 2)
 
-            # 3. Estimación inicial de proporciones de silueta (Anchura de hombros vs cadera)
+            # 3. Proporciones de silueta
             if 11 in pts and 12 in pts and 23 in pts and 24 in pts:
                 shoulder_width = np.linalg.norm(np.array(pts[11]) - np.array(pts[12]))
                 hip_width = np.linalg.norm(np.array(pts[23]) - np.array(pts[24]))
-                
                 ratio = shoulder_width / hip_width if hip_width > 0 else 0
                 analysis_result["silhouette_metrics"] = {
                     "shoulder_width_px": float(shoulder_width),
