@@ -4,7 +4,6 @@ import mediapipe as mp
 
 class BodyScanner:
     def __init__(self):
-        # Utilizando la API moderna de MediaPipe Tasks para Pose
         from mediapipe.tasks import python
         from mediapipe.tasks.python import vision
 
@@ -66,40 +65,61 @@ class BodyScanner:
         return frame, analysis_result
 
     def draw_body_hud(self, frame, analysis_result):
-        """Dibuja una malla envolvente y conexiones estructurales sobre el cuerpo detectado."""
-        if analysis_result["is_detected"]:
-            pts = analysis_result["landmarks_pixel"]
-            pts_list = list(pts.values())
-            
-            if len(pts_list) > 0:
-                # 1. Crear malla de contorno exterior (Convex Hull) que rodea todo el cuerpo
-                pts_array = np.array(pts_list, dtype=np.int32)
-                hull = cv2.convexHull(pts_array)
-                
-                # Dibujar polígono envolvente con efecto semitransparente (Malla exterior)
-                overlay = frame.copy()
-                cv2.polylines(overlay, [hull], isClosed=True, color=(0, 255, 255), thickness=2) # Cian brillante
-                cv2.fillPoly(overlay, [hull], (0, 100, 255)) # Tono naranja/verde sutil de relleno
-                cv2.addWeighted(overlay, 0.15, frame, 0.85, 0, frame)
-                
-                # Borde definitivo de la malla exterior
-                cv2.polylines(frame, [hull], isClosed=True, color=(0, 255, 255), thickness=2)
+        """Dibuja una silueta futurista compuesta por micro-triángulos y nodos cibernéticos."""
+        if not analysis_result["is_detected"]:
+            return frame
 
-                # 2. Conexiones estructurales internas (Esqueleto / Wireframe)
-                skeleton_connections = [
-                    (11, 12), (11, 23), (12, 24), (23, 24), # Torso principal
-                    (11, 13), (13, 15), # Brazo izquierdo
-                    (12, 14), (14, 16), # Brazo derecho
-                    (23, 25), (25, 27), # Pierna izquierda
-                    (24, 26), (26, 28)  # Pierna derecha
-                ]
+        pts = analysis_result["landmarks_pixel"]
+        if len(pts) < 10:
+            return frame
+
+        h, w, _ = frame.shape
+        overlay = frame.copy()
+
+        # Definir los contornos clave para rodear la silueta
+        silhouette_chains = [
+            [11, 13, 15, 17, 19, 21],  # Brazo izquierdo
+            [12, 14, 16, 18, 20, 22],  # Brazo derecho
+            [11, 12, 24, 23, 11],       # Torso
+            [23, 25, 27, 29, 31],       # Pierna izquierda
+            [24, 26, 28, 30, 32]        # Pierna derecha
+        ]
+
+        def draw_micro_triangle(img, center, size=5, color=(0, 255, 255)):
+            """Dibuja un micro-triángulo equilátero en las coordenadas dadas."""
+            cx, cy = center
+            pt1 = (cx, cy - size)
+            pt2 = (int(cx - size * 0.866), int(cy + size * 0.5))
+            pt3 = (int(cx + size * 0.866), int(cy + size * 0.5))
+            triangle_cnt = np.array([pt1, pt2, pt3], np.int32)
+            cv2.drawContours(img, [triangle_cnt], 0, color, -1, cv2.LINE_AA)
+
+        # 1. Generar micro-triángulos a lo largo de toda la silueta corporal
+        for chain in silhouette_chains:
+            valid_points = [pts[idx] for idx in chain if idx in pts]
+            for i in range(len(valid_points) - 1):
+                p1 = np.array(valid_points[i])
+                p2 = np.array(valid_points[i + 1])
+                dist = np.linalg.norm(p2 - p1)
                 
-                for p1, p2 in skeleton_connections:
-                    if p1 in pts and p2 in pts:
-                        cv2.line(frame, pts[p1], pts[p2], (255, 0, 128), 2) # Líneas moradas/rosa para estructura
-                        
-                # 3. Nodos clave en las articulaciones principales
-                for idx, pt in pts.items():
-                    cv2.circle(frame, pt, 3, (0, 255, 0), -1)
+                # Densidad de partículas (1 micro-triángulo cada 12 píxeles)
+                num_particles = max(1, int(dist / 12))
+                for t in np.linspace(0, 1, num_particles):
+                    interp_pt = (p1 * (1 - t) + p2 * t).astype(int)
+                    draw_micro_triangle(overlay, tuple(interp_pt), size=4, color=(0, 255, 220)) # Cian / Neón
+
+        # 2. Resplandor sutil envolvente (Efecto Scan Glow)
+        hull_pts = np.array(list(pts.values()), dtype=np.int32)
+        hull = cv2.convexHull(hull_pts)
+        cv2.polylines(overlay, [hull], isClosed=True, color=(0, 200, 255), thickness=1, lineType=cv2.LINE_AA)
+        cv2.fillPoly(overlay, [hull], (0, 80, 20)) # Capa verde/cian de escaneo suave
+
+        # Mezclar capa transparente para un acabado pulido
+        cv2.addWeighted(overlay, 0.4, frame, 0.6, 0, frame)
+
+        # 3. Nodos principales (Triángulos más grandes y definidos en las articulaciones clave)
+        for idx in [11, 12, 13, 14, 15, 16, 23, 24, 25, 26, 27, 28]:
+            if idx in pts:
+                draw_micro_triangle(frame, pts[idx], size=7, color=(0, 255, 0))
 
         return frame
