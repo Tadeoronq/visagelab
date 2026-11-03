@@ -4,7 +4,7 @@ import mediapipe as mp
 
 class BodyScanner:
     def __init__(self):
-        # Inicialización moderna de MediaPipe Tasks para evitar dependencias legadas
+        # Utilizando la API moderna de MediaPipe Tasks para Pose
         from mediapipe.tasks import python
         from mediapipe.tasks.python import vision
 
@@ -66,8 +66,40 @@ class BodyScanner:
         return frame, analysis_result
 
     def draw_body_hud(self, frame, analysis_result):
-        """Dibuja el HUD visual utilizando las coordenadas calculadas."""
+        """Dibuja una malla envolvente y conexiones estructurales sobre el cuerpo detectado."""
         if analysis_result["is_detected"]:
-            for idx, pt in analysis_result["landmarks_pixel"].items():
-                cv2.circle(frame, pt, 4, (0, 255, 0), -1)
+            pts = analysis_result["landmarks_pixel"]
+            pts_list = list(pts.values())
+            
+            if len(pts_list) > 0:
+                # 1. Crear malla de contorno exterior (Convex Hull) que rodea todo el cuerpo
+                pts_array = np.array(pts_list, dtype=np.int32)
+                hull = cv2.convexHull(pts_array)
+                
+                # Dibujar polígono envolvente con efecto semitransparente (Malla exterior)
+                overlay = frame.copy()
+                cv2.polylines(overlay, [hull], isClosed=True, color=(0, 255, 255), thickness=2) # Cian brillante
+                cv2.fillPoly(overlay, [hull], (0, 100, 255)) # Tono naranja/verde sutil de relleno
+                cv2.addWeighted(overlay, 0.15, frame, 0.85, 0, frame)
+                
+                # Borde definitivo de la malla exterior
+                cv2.polylines(frame, [hull], isClosed=True, color=(0, 255, 255), thickness=2)
+
+                # 2. Conexiones estructurales internas (Esqueleto / Wireframe)
+                skeleton_connections = [
+                    (11, 12), (11, 23), (12, 24), (23, 24), # Torso principal
+                    (11, 13), (13, 15), # Brazo izquierdo
+                    (12, 14), (14, 16), # Brazo derecho
+                    (23, 25), (25, 27), # Pierna izquierda
+                    (24, 26), (26, 28)  # Pierna derecha
+                ]
+                
+                for p1, p2 in skeleton_connections:
+                    if p1 in pts and p2 in pts:
+                        cv2.line(frame, pts[p1], pts[p2], (255, 0, 128), 2) # Líneas moradas/rosa para estructura
+                        
+                # 3. Nodos clave en las articulaciones principales
+                for idx, pt in pts.items():
+                    cv2.circle(frame, pt, 3, (0, 255, 0), -1)
+
         return frame
