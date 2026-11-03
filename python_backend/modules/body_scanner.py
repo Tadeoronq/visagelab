@@ -4,7 +4,7 @@ import mediapipe as mp
 
 class BodyScanner:
     def __init__(self):
-        # Utilizando la API moderna de MediaPipe Tasks para Pose
+        # Inicialización moderna de MediaPipe Tasks para evitar dependencias legadas
         from mediapipe.tasks import python
         from mediapipe.tasks.python import vision
 
@@ -66,7 +66,7 @@ class BodyScanner:
         return frame, analysis_result
 
     def draw_body_hud(self, frame, analysis_result):
-        """Dibuja círculos en los puntos clave detectados sobre el frame."""
+        """Dibuja el HUD visual utilizando las coordenadas calculadas."""
         if analysis_result["is_detected"]:
             for idx, pt in analysis_result["landmarks_pixel"].items():
                 cv2.circle(frame, pt, 4, (0, 255, 0), -1)

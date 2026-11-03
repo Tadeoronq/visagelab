@@ -5,9 +5,7 @@ def main():
     print("🚀 Iniciando prueba de Escaneo Corporal con MediaPipe Pose...")
     scanner = BodyScanner()
     
-    # Abrir la cámara web (índice 0)
     cap = cv2.VideoCapture(0)
-    
     if not cap.isOpened():
         print("❌ Error: No se pudo abrir la cámara web.")
         return
@@ -20,23 +18,16 @@ def main():
             print("⚠️ No se pudo recibir fotograma de la cámara.")
             break
 
-        # Analizar postura y silueta
+        # Delegamos todo el análisis pesado al módulo
         processed_frame, data = scanner.analyze_posture_and_silhouette(frame)
         
-        # Dibujar HUD del esqueleto si se detecta el cuerpo
+        # Si detecta el cuerpo, dibujamos y mostramos datos en consola
         if data["is_detected"]:
-            # Volver a procesar rápidamente con MediaPipe para el dibujado visual
-            image_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-            results = scanner.pose.process(image_rgb)
-            processed_frame = scanner.draw_body_hud(processed_frame, results)
-            
-            # Mostrar métricas en la terminal de forma limpia
+            processed_frame = scanner.draw_body_hud(processed_frame, data)
             print(f"Postura Detectada -> Inclinación Hombros: {data['shoulder_tilt_deg']}° | Inclinación Cadera: {data['hip_tilt_deg']}°", end="\r")
 
-        # Mostrar video en una ventana interactiva
         cv2.imshow("VisageLab - Fase 2: Escaneo Corporal", processed_frame)
 
-        # Salir al presionar la tecla 'q'
         if cv2.waitKey(1) & 0xFF == ord('q'):
             break
 
