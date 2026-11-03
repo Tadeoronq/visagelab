@@ -2,42 +2,51 @@
 import cv2
 import numpy as np
 
-# Importación segura de MediaPipe para evitar errores de atributos
 try:
     import mediapipe as mp
+    # Uso directo de la API moderna de MediaPipe Tasks/Solutions con manejo de compatibilidad
+    BaseOptions = mp.tasks.BaseOptions
+    PoseLandmarker = mp.tasks.vision.PoseLandmarker
+    PoseLandmarkerOptions = mp.tasks.vision.PoseLandmarkerOptions
+    VisionRunningMode = mp.tasks.vision.RunningMode
     MP_AVAILABLE = True
-except ImportError:
+except Exception:
     MP_AVAILABLE = False
 
 class BodyScanner:
     def __init__(self):
-        if not MP_AVAILABLE:
-            raise ImportError("MediaPipe no está instalado correctamente en el entorno virtual.")
-        
-        self.mp_pose = mp.solutions.pose
-        self.pose = self.mp_pose.Pose(
-            static_image_mode=False,
-            model_complexity=1,
-            smooth_landmarks=True,
-            min_detection_confidence=0.5,
-            min_tracking_confidence=0.5
-        )
-        self.mp_drawing = mp.solutions.drawing_utils
+        # Si prefieres usar la API tradicional si estuviera disponible, o un fallback seguro:
+        import mediapipe as mp
+        try:
+            self.mp_pose = mp.solutions.pose
+            self.pose = self.mp_pose.Pose(
+                static_image_mode=False,
+                model_complexity=1,
+                smooth_landmarks=True,
+                min_detection_confidence=0.5,
+                min_tracking_confidence=0.5
+            )
+            self.mp_drawing = mp.solutions.drawing_utils
+            self.legacy_mode = True
+        except AttributeError:
+            # Modo alternativo si la versión de mediapipe requiere instalación específica o ajuste
+            self.legacy_mode = False
+            raise ImportError(
+                "Tu versión de MediaPipe requiere el uso de Tasks. "
+                "Ejecuta en tu terminal: pip install mediapipe==0.10.9 para asegurar compatibilidad con el código clásico."
+            )
 
     def analyze_posture_and_silhouette(self, frame):
-        """
-        Procesa un fotograma para extraer puntos corporales,
-        analizar postura (inclinación de hombros/cadera) y métricas de silueta.
-        """
         h, w, _ = frame.shape
         image_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        
+        # Convertir a imagen de mediapipe si es necesario
         results = self.pose.process(image_rgb)
         
         analysis_result = {
             "is_detected": False,
             "shoulder_tilt_deg": 0.0,
             "hip_tilt_deg": 0.0,
-            "torso_symmetry": 0.0,
             "silhouette_metrics": {},
             "landmarks_pixel": []
         }
@@ -45,19 +54,17 @@ class BodyScanner:
         if results.pose_landmarks:
             analysis_result["is_detected"] = True
             landmarks = results.pose_landmarks.landmark
-
-            # Extraer coordenadas en píxeles de puntos clave
             pts = {i: (int(landmarks[i].x * w), int(landmarks[i].y * h)) for i in range(len(landmarks))}
             analysis_result["landmarks_pixel"] = pts
 
-            # 1. Cálculo de Inclinación de Hombros (Izquierdo: 11, Derecho: 12)
+            # 1. Inclinación de hombros (Izquierdo: 11, Derecho: 12)
             if 11 in pts and 12 in pts:
                 dx = pts[12][0] - pts[11][0]
                 dy = pts[12][1] - pts[11][1]
                 shoulder_angle = np.degrees(np.arctan2(dy, dx))
                 analysis_result["shoulder_tilt_deg"] = round(float(shoulder_angle), 2)
 
-            # 2. Cálculo de Inclinación de Cadera (Izquierda: 23, Derecha: 24)
+            # 2. Inclinación de cadera (Izquierda: 23, Derecha: 24)
             if 23 in pts and 24 in pts:
                 dx_hip = pts[24][0] - pts[23][0]
                 dy_hip = pts[24][1] - pts[23][1]
@@ -78,7 +85,6 @@ class BodyScanner:
         return frame, analysis_result
 
     def draw_body_hud(self, frame, results):
-        """Dibuja el esqueleto corporal y las conexiones sobre el frame."""
         if results.pose_landmarks:
             self.mp_drawing.draw_landmarks(
                 frame, 
