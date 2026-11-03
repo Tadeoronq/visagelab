@@ -1,47 +1,31 @@
 # Fase 2: Escaneo corporal, postura y ángulos articulares
 import cv2
 import numpy as np
-
-try:
-    import mediapipe as mp
-    # Uso directo de la API moderna de MediaPipe Tasks/Solutions con manejo de compatibilidad
-    BaseOptions = mp.tasks.BaseOptions
-    PoseLandmarker = mp.tasks.vision.PoseLandmarker
-    PoseLandmarkerOptions = mp.tasks.vision.PoseLandmarkerOptions
-    VisionRunningMode = mp.tasks.vision.RunningMode
-    MP_AVAILABLE = True
-except Exception:
-    MP_AVAILABLE = False
+import mediapipe as mp
 
 class BodyScanner:
     def __init__(self):
-        # Si prefieres usar la API tradicional si estuviera disponible, o un fallback seguro:
-        import mediapipe as mp
-        try:
-            self.mp_pose = mp.solutions.pose
-            self.pose = self.mp_pose.Pose(
-                static_image_mode=False,
-                model_complexity=1,
-                smooth_landmarks=True,
-                min_detection_confidence=0.5,
-                min_tracking_confidence=0.5
-            )
-            self.mp_drawing = mp.solutions.drawing_utils
-            self.legacy_mode = True
-        except AttributeError:
-            # Modo alternativo si la versión de mediapipe requiere instalación específica o ajuste
-            self.legacy_mode = False
-            raise ImportError(
-                "Tu versión de MediaPipe requiere el uso de Tasks. "
-                "Ejecuta en tu terminal: pip install mediapipe==0.10.9 para asegurar compatibilidad con el código clásico."
-            )
+        # Utilizando la API moderna de MediaPipe Tasks para Pose
+        from mediapipe.tasks import python
+        from mediapipe.tasks.python import vision
+
+        # Descarga o usa el modelo estándar de pose landmarker
+        # Nota: Aseguraremos el procesamiento con la API de vision moderna
+        base_options = python.BaseOptions(model_asset_path='pose_landmarker.task')
+        options = vision.PoseLandmarkerOptions(
+            base_options=base_options,
+            running_mode=vision.RunningMode.IMAGE,
+            num_poses=1
+        )
+        self.detector = vision.PoseLandmarker.create_from_options(options)
 
     def analyze_posture_and_silhouette(self, frame):
         h, w, _ = frame.shape
         image_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         
-        # Convertir a imagen de mediapipe si es necesario
-        results = self.pose.process(image_rgb)
+        # Convertir frame a formato mp.Image requerido por la versión moderna
+        mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=image_rgb)
+        results = self.detector.detect(mp_image)
         
         analysis_result = {
             "is_detected": False,
@@ -51,9 +35,11 @@ class BodyScanner:
             "landmarks_pixel": []
         }
 
-        if results.pose_landmarks:
+        if results.pose_landmarks and len(results.pose_landmarks) > 0:
             analysis_result["is_detected"] = True
-            landmarks = results.pose_landmarks.landmark
+            landmarks = results.pose_landmarks[0] # Primer persona detectada
+
+            # Extraer coordenadas en píxeles
             pts = {i: (int(landmarks[i].x * w), int(landmarks[i].y * h)) for i in range(len(landmarks))}
             analysis_result["landmarks_pixel"] = pts
 
@@ -84,13 +70,10 @@ class BodyScanner:
 
         return frame, analysis_result
 
-    def draw_body_hud(self, frame, results):
-        if results.pose_landmarks:
-            self.mp_drawing.draw_landmarks(
-                frame, 
-                results.pose_landmarks, 
-                self.mp_pose.POSE_CONNECTIONS,
-                self.mp_drawing.DrawingSpec(color=(0, 255, 0), thickness=2, circle_radius=2),
-                self.mp_drawing.DrawingSpec(color=(255, 0, 0), thickness=2)
-            )
+    def draw_body_hud(self, frame, analysis_result):
+        """Dibuja círculos sencillos en los puntos clave detectados sobre el frame."""
+        if analysis_result["is_detected"]:
+            for idx, pt in analysis_result["landmarks_pixel"].items():
+                # Dibujar puntos clave en color verde brillante
+                cv2.circle(frame, pt, 4, (0, 255, 0), -1)
         return frame
