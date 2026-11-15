@@ -1,16 +1,16 @@
 // ============================================================================
-// VISAGELAB - CAPA 1: SISTEMA ESQUELÉTICO (FK, 12 PARÁMETROS Y SOPORTE GLB/PBR)
+// VISAGELAB - CAPA 1: MOTOR DE DEFORMACIÓN ANATÓMICA UNIFICADO (applyAnatomyState)
 // ============================================================================
 
 // ============================================================================
-// [BLOQUE 1] IMPORTACIONES, TEXTURA ÓSEA PBR Y CONSTRUCTORES GEOMÉTRICOS
-// Función: Carga Three.js y GLTFLoader mediante el importmap del visor, sintetiza
-// la textura de porosidad ósea y define los constructores de diáfisis y vértebras.
+// [BLOQUE 1] IMPORTACIONES DIRECTAS, TEXTURA PBR Y GEOMETRÍA BASE
+// Función: Importa Three.js y GLTFLoader con URL completa para evitar fallos
+// de resolución en localhost, genera la textura de porosidad ósea y define los
+// constructores geométricos de huesos largos y vértebras.
 // ============================================================================
-import * as THREE from "three";
-import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
+import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.158.0/build/three.module.js";
+import { GLTFLoader } from "https://cdn.jsdelivr.net/npm/three@0.158.0/examples/jsm/loaders/GLTFLoader.js";
 
-// Genera mapa difuso y bump de porosidad ósea cortical sobre un canvas 2D
 function crearTexturaPorosidadOsea() {
   const canvas = document.createElement("canvas");
   canvas.width = 256;
@@ -40,7 +40,6 @@ function crearTexturaPorosidadOsea() {
   return tex;
 }
 
-// Construye un hueso largo con epífisis ensanchadas y diáfisis estrecha mediante torno
 function crearDiafisis(rExtremos, rCentro, largo, segRadial = 24, segCurva = 18) {
   const puntos = [
     new THREE.Vector2(0.001, -largo * 0.5),
@@ -57,7 +56,6 @@ function crearDiafisis(rExtremos, rCentro, largo, segRadial = 24, segCurva = 18)
   return geo;
 }
 
-// Construye una vértebra con cuerpo cilíndrico, disco intervertebral y apófisis
 function crearVertebra(radioCuerpo, altura, matHueso, matDisco) {
   const g = new THREE.Group();
   const cuerpo = new THREE.Mesh(
@@ -92,13 +90,65 @@ function crearVertebra(radioCuerpo, altura, matHueso, matDisco) {
   g.add(cuerpo, disco, espinosa, transversa);
   return g;
 }
-
 // ============================================================================
-// [BLOQUE 2] MATERIALES PBR Y ARMATURE VIRTUAL (CINEMÁTICA DIRECTA / FK)
-// Función: Configura los materiales físicos del tejido óseo, articular y
-// cartilaginoso, y arma la jerarquía padre-hijo de huesos virtuales
-// (Pelvis -> L5..L1 -> T12..T1 -> C7..C1 -> Head y extremidades) compatible
-// con nombres de rig estándar de Blender.
+// [BLOQUE 2] DISTRIBUCIÓN SUAVE NO LINEAL Y LÍMITES CLÍNICOS (CLAMPING)
+// Función: Define los límites seguros por parámetro, los factores de
+// calibración clínica y las curvas matemáticas (campana gaussiana y onda
+// compensada de escoliosis) para evitar quiebres o bisagras rígidas.
+// ============================================================================
+const CLAMP_LIMITS = {
+  estaturaCm: [140, 210],
+  cifosisDeg: [-15, 45],
+  hiperlordosisDeg: [-15, 45],
+  escoliosisToracicaDeg: [-35, 35],
+  escoliosisLumbarDeg: [-35, 35],
+  antepulsionCuelloCm: [-3, 14],
+  craneoPitchDeg: [-35, 35],
+  craneoYawDeg: [-50, 50],
+  craneoRollDeg: [-30, 30],
+  hombrosAdelantadosDeg: [-10, 35],
+  escapulasAladasDeg: [0, 30],
+  asimetriaHombrosCm: [-6, 6],
+  morfologiaTorax: [0.78, 1.28],
+  anteversionPelvicaDeg: [-20, 30],
+  basculacionPelvicaDeg: [-15, 15]
+};
+
+function acotar(valor, min, max) {
+  return THREE.MathUtils.clamp(Number.isFinite(valor) ? valor : 0, min, max);
+}
+
+// Curva en campana gaussiana normalizada: concentra la curvatura sagital en el ápex
+function obtenerPesosCampana(numHuesos, apexNorm = 0.5, sigma = 0.28) {
+  const pesos = [];
+  let suma = 0;
+  for (let i = 0; i < numHuesos; i++) {
+    const t = numHuesos > 1 ? i / (numHuesos - 1) : 0.5;
+    const d = (t - apexNorm) / sigma;
+    const w = Math.exp(-0.5 * d * d);
+    pesos.push(w);
+    suma += w;
+  }
+  return pesos.map((w) => w / (suma || 1));
+}
+
+// Onda sinusoidal compensada para escoliosis: el tramo nace inclinándose,
+// alcanza el ápex lateral en el centro del segmento y regresa a la vertical arriba
+function obtenerPesosArcoEscoliosis(numHuesos) {
+  const pesos = [];
+  for (let i = 0; i < numHuesos; i++) {
+    const t = numHuesos > 1 ? i / (numHuesos - 1) : 0.5;
+    // Derivada de campana senoidal: positiva en la mitad inferior, negativa en la superior
+    const w = Math.cos(t * Math.PI) * Math.sin(t * Math.PI);
+    pesos.push(w);
+  }
+  return pesos;
+}
+// ============================================================================
+// [BLOQUE 3] ARMATURE JERÁRQUICO, POSE NEUTRA (restPose) Y MALLAS ÓSEAS
+// Función: Construye la cadena cinemática padre-hijo, añade las mallas óseas
+// con curva anatómica base fisiológica y guarda la restPose inmutable de cada
+// hueso para resetear antes de cada actualización.
 // ============================================================================
 export function crearCapaEsqueleto(opciones = {}) {
   const group = new THREE.Group();
@@ -106,7 +156,6 @@ export function crearCapaEsqueleto(opciones = {}) {
 
   const texturaHueso = crearTexturaPorosidadOsea();
 
-  // Material cortical con micro-relieve y barniz sutil
   const materialHueso = new THREE.MeshPhysicalMaterial({
     color: new THREE.Color("#f3ede0"),
     map: texturaHueso,
@@ -118,7 +167,6 @@ export function crearCapaEsqueleto(opciones = {}) {
     clearcoatRoughness: 0.52
   });
 
-  // Material ligeramente más rugoso para cápsulas y superficies articulares
   const materialArticulacion = new THREE.MeshPhysicalMaterial({
     color: new THREE.Color("#dfd5c0"),
     map: texturaHueso,
@@ -128,13 +176,10 @@ export function crearCapaEsqueleto(opciones = {}) {
     metalness: 0.01
   });
 
-  // Material translúcido para discos intervertebrales y cartílagos costales
   const materialCartilago = new THREE.MeshPhysicalMaterial({
     color: new THREE.Color("#c9d2d8"),
     roughness: 0.36,
-    metalness: 0.01,
-    transmission: 0.15,
-    thickness: 0.02
+    metalness: 0.01
   });
 
   function malla(geo, mat = materialHueso) {
@@ -144,95 +189,95 @@ export function crearCapaEsqueleto(opciones = {}) {
     return m;
   }
 
-  // Raíz del esqueleto cinemático virtual
   const armatureRaiz = new THREE.Group();
   armatureRaiz.name = "Armature_VisageLab";
   group.add(armatureRaiz);
 
+  const contenedorGlb = new THREE.Group();
+  contenedorGlb.name = "EsqueletoGLB";
+  contenedorGlb.visible = false;
+  group.add(contenedorGlb);
+
   const huesos = {};
-  function crearHueso(nombre, padre, posLocal = [0, 0, 0]) {
+  const restPose = {};
+
+  function crearHueso(nombre, padre, posLocal = [0, 0, 0], rotLocal = [0, 0, 0]) {
     const h = new THREE.Object3D();
     h.name = nombre;
     h.position.set(...posLocal);
+    h.rotation.set(...rotLocal);
     padre.add(h);
     huesos[nombre] = h;
+    // Registro inmutable de la Pose Neutra (T-Pose / A-Pose en 0°)
+    restPose[nombre] = {
+      position: h.position.clone(),
+      rotation: h.rotation.clone(),
+      scale: h.scale.clone()
+    };
     return h;
   }
 
-  // Pelvis como hueso raíz de toda la cadena postural
-  const hPelvis = crearHueso("Pelvis", armatureRaiz, [0, 0.85, 0]);
+  // Raíz pélvica
+  const hPelvis = crearHueso("Pelvis", armatureRaiz, [0, 0.86, 0]);
 
-  // Columna lumbar (L5 a L1) encadenada sobre Pelvis
+  // Tramo Lumbar: L5 a L1 (con ligera lordosis fisiológica base en restPose)
   const hLumbares = [];
   let padreActual = hPelvis;
   for (let i = 5; i >= 1; i--) {
-    const yStep = i === 5 ? 0.045 : 0.036;
-    const hL = crearHueso(`L${i}`, padreActual, [0, yStep, -0.022]);
+    const yStep = i === 5 ? 0.044 : 0.035;
+    const zStep = i === 5 ? -0.018 : 0.002;
+    const rotBaseX = -0.025; // Lordosis fisiológica neutra
+    const hL = crearHueso(`L${i}`, padreActual, [0, yStep, zStep], [rotBaseX, 0, 0]);
     hLumbares.push(hL);
     padreActual = hL;
   }
 
-  // Columna dorsal/torácica (T12 a T1) encadenada sobre L1
+  // Tramo Dorsal/Torácico: T12 a T1 (con ligera cifosis fisiológica base en restPose)
   const hDorsales = [];
   for (let i = 12; i >= 1; i--) {
-    const hT = crearHueso(`T${i}`, padreActual, [0, 0.025, 0]);
+    const rotBaseX = 0.018; // Cifosis fisiológica neutra
+    const hT = crearHueso(`T${i}`, padreActual, [0, 0.025, 0], [rotBaseX, 0, 0]);
     hDorsales.push(hT);
     padreActual = hT;
   }
 
-  // Punto central del tórax anclado a la vértebra T6
   const hTorax = crearHueso("Torax_Centro", huesos["T6"], [0, 0, 0.022]);
 
-  // Columna cervical (C7 a C1) y cabeza encadenadas sobre T1
+  // Tramo Cervical: C7 a C1 + Head
   const hCervicales = [];
   for (let i = 7; i >= 1; i--) {
-    const hC = crearHueso(`C${i}`, padreActual, [0, 0.017, 0.002]);
+    const rotBaseX = -0.015;
+    const hC = crearHueso(`C${i}`, padreActual, [0, 0.017, 0.001], [rotBaseX, 0, 0]);
     hCervicales.push(hC);
     padreActual = hC;
   }
-  const hCraneo = crearHueso("Head", padreActual, [0, 0.042, 0.014]);
+  const hCraneo = crearHueso("Head", padreActual, [0, 0.042, 0.012], [0.02, 0, 0]);
 
-  // Ramas de cintura escapular y extremidades superiores (L = izquierda, R = derecha)
+  // Cintura escapular y extremidades superiores
   function construirCadenaBrazo(lado) {
     const s = lado === "L" ? -1 : 1;
-    const hClavicula = crearHueso(`Clavicle.${lado}`, huesos["T2"], [s * 0.025, 0.012, 0.045]);
-    const hEscapula = crearHueso(`Scapula.${lado}`, huesos["T4"], [s * 0.068, 0.015, -0.042]);
-    const hHombro = crearHueso(`UpperArm.${lado}`, hClavicula, [s * 0.165, -0.008, -0.022]);
-    const hCodo = crearHueso(`Forearm.${lado}`, hHombro, [0, -0.28, 0]);
+    const hClavicula = crearHueso(`Clavicle.${lado}`, huesos["T2"], [s * 0.024, 0.012, 0.044]);
+    const hEscapula = crearHueso(`Scapula.${lado}`, huesos["T4"], [s * 0.068, 0.014, -0.040]);
+    const hHombro = crearHueso(`UpperArm.${lado}`, hClavicula, [s * 0.165, -0.008, -0.020], [0, 0, -s * 0.16]);
+    const hCodo = crearHueso(`Forearm.${lado}`, hHombro, [0, -0.28, 0], [-0.06, 0, -s * 0.04]);
     const hMuneca = crearHueso(`Hand.${lado}`, hCodo, [0, -0.25, 0]);
     return { hClavicula, hEscapula, hHombro, hCodo, hMuneca };
   }
   const cadBrazoIzq = construirCadenaBrazo("L");
   const cadBrazoDer = construirCadenaBrazo("R");
 
-  // Ramas de extremidades inferiores encadenadas a la pelvis
+  // Extremidades inferiores
   function construirCadenaPierna(lado) {
     const s = lado === "L" ? -1 : 1;
     const hCadera = crearHueso(`Thigh.${lado}`, hPelvis, [s * 0.098, -0.015, 0.005]);
-    const hRodilla = crearHueso(`Shin.${lado}`, hCadera, [0, -0.41, 0.010]);
-    const hTobillo = crearHueso(`Foot.${lado}`, hRodilla, [0, -0.40, -0.006]);
+    const hRodilla = crearHueso(`Shin.${lado}`, hCadera, [0, -0.41, 0.008]);
+    const hTobillo = crearHueso(`Foot.${lado}`, hRodilla, [0, -0.40, -0.005]);
     return { hCadera, hRodilla, hTobillo };
   }
   const cadPiernaIzq = construirCadenaPierna("L");
   const cadPiernaDer = construirCadenaPierna("R");
-  // ============================================================================
-// [BLOQUE 3] ENSAMBLAJE DE GEOMETRÍA ÓSEA PROCEDURAL SOBRE EL ARMATURE
-// Función: Viste cada hueso virtual con mallas anatómicas detalladas (pelvis,
-// 24 vértebras, caja torácica con cartílago costal, cráneo/mandíbula,
-// escápulas, clavículas y extremidades) para operar sin dependencias externas
-// mientras no se cargue un archivo .glb.
-// ============================================================================
-  const rigProcedural = new THREE.Group();
-  rigProcedural.name = "EsqueletoProcedural";
-  armatureRaiz.add(rigProcedural);
 
-  // Contenedor oculto por defecto que se activa al importar un .glb de Blender
-  const contenedorGlb = new THREE.Group();
-  contenedorGlb.name = "EsqueletoGLB";
-  contenedorGlb.visible = false;
-  group.add(contenedorGlb);
-
-  // 1. Pelvis ósea (sacro y cintura pélvica)
+  // Vestido geométrico de Pelvis
   const mallaPelvis = new THREE.Group();
   const sacro = malla(crearDiafisis(0.032, 0.020, 0.11));
   sacro.position.set(0, -0.01, -0.042);
@@ -244,25 +289,16 @@ export function crearCapaEsqueleto(opciones = {}) {
   mallaPelvis.add(sacro, cinturaPelvica);
   hPelvis.add(mallaPelvis);
 
-  // 2. Inserción de las 24 vértebras individuales (5 lumbares, 12 dorsales, 7 cervicales)
-  hLumbares.forEach((hL, idx) => {
-    const r = 0.021 - idx * 0.0006;
-    hL.add(crearVertebra(r, 0.030, materialHueso, materialCartilago));
-  });
-  hDorsales.forEach((hT, idx) => {
-    const r = 0.018 - idx * 0.0004;
-    hT.add(crearVertebra(r, 0.022, materialHueso, materialCartilago));
-  });
-  hCervicales.forEach((hC, idx) => {
-    const r = 0.013 - idx * 0.0003;
-    hC.add(crearVertebra(r, 0.014, materialHueso, materialCartilago));
-  });
+  // Vestido de las 24 Vértebras
+  hLumbares.forEach((hL, idx) => hL.add(crearVertebra(0.021 - idx * 0.0006, 0.030, materialHueso, materialCartilago)));
+  hDorsales.forEach((hT, idx) => hT.add(crearVertebra(0.018 - idx * 0.0004, 0.022, materialHueso, materialCartilago)));
+  hCervicales.forEach((hC, idx) => hC.add(crearVertebra(0.013 - idx * 0.0003, 0.014, materialHueso, materialCartilago)));
 
-  // 3. Caja torácica (esternón + 10 pares de costillas verdaderas y falsas)
+  // Vestido de Caja Torácica
   const cajaToracicaGrupo = new THREE.Group();
   const esternon = malla(crearDiafisis(0.016, 0.013, 0.175));
   esternon.position.set(0, 0.005, 0.096);
-  esternon.rotation.x = -0.14;
+  esternon.rotation.x = -0.12;
   cajaToracicaGrupo.add(esternon);
 
   const costillasMallas = [];
@@ -270,8 +306,7 @@ export function crearCapaEsqueleto(opciones = {}) {
     const t = i / 9;
     const radioBase = THREE.MathUtils.lerp(0.072, 0.128, Math.sin(t * Math.PI * 0.82));
     const arco = i < 7 ? Math.PI * 1.58 : Math.PI * 1.25;
-    const geoCostilla = new THREE.TorusGeometry(radioBase, 0.0055, 10, 32, arco);
-    const costilla = malla(geoCostilla, i >= 6 ? materialCartilago : materialHueso);
+    const costilla = malla(new THREE.TorusGeometry(radioBase, 0.0055, 10, 32, arco), i >= 6 ? materialCartilago : materialHueso);
     costilla.rotation.x = Math.PI * 0.49;
     costilla.rotation.z = Math.PI * 0.5 - arco * 0.5 + Math.PI;
     costilla.position.set(0, 0.115 - i * 0.024, 0.002);
@@ -281,24 +316,22 @@ export function crearCapaEsqueleto(opciones = {}) {
   }
   hTorax.add(cajaToracicaGrupo);
 
-  // 4. Cráneo, maxilar y mandíbula
+  // Vestido de Cráneo y Mandíbula
   const mallaCraneo = new THREE.Group();
   const boveda = malla(new THREE.SphereGeometry(0.092, 32, 26));
   boveda.scale.set(0.85, 1.08, 1.04);
   boveda.position.set(0, 0.032, -0.006);
-
   const maxilar = malla(new THREE.CylinderGeometry(0.044, 0.036, 0.042, 20));
   maxilar.scale.set(1.05, 1, 1.15);
   maxilar.position.set(0, -0.018, 0.042);
-
   const mandibula = malla(new THREE.SphereGeometry(0.056, 24, 20));
   mandibula.scale.set(0.76, 0.52, 0.94);
   mandibula.position.set(0, -0.048, 0.032);
   mallaCraneo.add(boveda, maxilar, mandibula);
   hCraneo.add(mallaCraneo);
 
-  // 5. Extremidades superiores (clavícula, escápula, húmero, antebrazo, mano)
-  function vestirBrazoProcedural(cad, lado) {
+  // Vestido de Brazos y Piernas
+  function vestirBrazo(cad, lado) {
     const s = lado === "L" ? -1 : 1;
     const clavicula = malla(crearDiafisis(0.010, 0.007, 0.165));
     clavicula.rotation.z = s * (Math.PI * 0.47);
@@ -312,49 +345,41 @@ export function crearCapaEsqueleto(opciones = {}) {
     escapula.position.set(s * 0.022, -0.042, -0.012);
     cad.hEscapula.add(escapula);
 
-    const artHombro = malla(new THREE.SphereGeometry(0.023, 18, 16), materialArticulacion);
     const humero = malla(crearDiafisis(0.020, 0.015, 0.28));
     humero.position.set(0, -0.14, 0);
-    cad.hHombro.add(artHombro, humero);
+    cad.hHombro.add(malla(new THREE.SphereGeometry(0.023, 18, 16), materialArticulacion), humero);
 
-    const artCodo = malla(new THREE.SphereGeometry(0.017, 16, 14), materialArticulacion);
     const antebrazo = malla(crearDiafisis(0.016, 0.012, 0.25));
     antebrazo.position.set(0, -0.125, 0);
-    cad.hCodo.add(artCodo, antebrazo);
+    cad.hCodo.add(malla(new THREE.SphereGeometry(0.017, 16, 14), materialArticulacion), antebrazo);
 
-    const artMuneca = malla(new THREE.SphereGeometry(0.013, 14, 12), materialArticulacion);
     const mano = malla(new THREE.BoxGeometry(0.018, 0.080, 0.054));
     mano.position.set(0, -0.042, 0);
-    cad.hMuneca.add(artMuneca, mano);
+    cad.hMuneca.add(malla(new THREE.SphereGeometry(0.013, 14, 12), materialArticulacion), mano);
   }
-  vestirBrazoProcedural(cadBrazoIzq, "L");
-  vestirBrazoProcedural(cadBrazoDer, "R");
+  vestirBrazo(cadBrazoIzq, "L");
+  vestirBrazo(cadBrazoDer, "R");
 
-  // 6. Extremidades inferiores (cadera, fémur, rodilla, tibia, tobillo, pie)
-  function vestirPiernaProcedural(cad) {
-    const artCadera = malla(new THREE.SphereGeometry(0.028, 18, 16), materialArticulacion);
+  function vestirPierna(cad) {
     const femur = malla(crearDiafisis(0.027, 0.021, 0.41));
     femur.position.set(0, -0.205, 0.005);
-    cad.hCadera.add(artCadera, femur);
+    cad.hCadera.add(malla(new THREE.SphereGeometry(0.028, 18, 16), materialArticulacion), femur);
 
-    const artRodilla = malla(new THREE.SphereGeometry(0.023, 18, 16), materialArticulacion);
     const tibia = malla(crearDiafisis(0.022, 0.016, 0.40));
     tibia.position.set(0, -0.20, -0.003);
-    cad.hRodilla.add(artRodilla, tibia);
+    cad.hRodilla.add(malla(new THREE.SphereGeometry(0.023, 18, 16), materialArticulacion), tibia);
 
-    const artTobillo = malla(new THREE.SphereGeometry(0.017, 14, 12), materialArticulacion);
     const pie = malla(new THREE.BoxGeometry(0.056, 0.030, 0.180));
     pie.position.set(0, -0.022, 0.042);
-    cad.hTobillo.add(artTobillo, pie);
+    cad.hTobillo.add(malla(new THREE.SphereGeometry(0.017, 14, 12), materialArticulacion), pie);
   }
-  vestirPiernaProcedural(cadPiernaIzq);
-  vestirPiernaProcedural(cadPiernaDer);
+  vestirPierna(cadPiernaIzq);
+  vestirPierna(cadPiernaDer);
   // ============================================================================
-// [BLOQUE 4] PUNTOS DE ANCLAJE MUNDIALES (POSICIÓN + ROTACIÓN)
-// Función: Calcula y expone las coordenadas mundiales (getWorldPosition) y
-// orientaciones (getWorldQuaternion) de las 16 articulaciones principales para
-// que las Capas 2 (Músculo), 3 (Grasa), 4 (Piel) y 6 (Ropa) se alineen con
-// precisión milimétrica ante cualquier postura.
+// [BLOQUE 4] RESET A POSE NEUTRA (restPose) Y ANCLAJES MUNDIALES
+// Función: Restaura todos los huesos a su estado neutro inicial antes de cada
+// cálculo para impedir derivas acumulativas y expone las coordenadas mundiales
+// para las Capas 2, 3, 4 y 6.
 // ============================================================================
   const anclajes = {};
   const nodosAncla = {
@@ -382,7 +407,30 @@ export function crearCapaEsqueleto(opciones = {}) {
     anclajes[clave] = v;
   });
 
-  // Actualiza las matrices mundiales del árbol FK y vuelca posición y cuaternión
+  let ultimoParams = {};
+  let skinnedMeshGlb = null;
+  let huesosGlbMap = {};
+  let restPoseGlb = {};
+
+  function resetToRestPose() {
+    Object.entries(huesos).forEach(([nombre, h]) => {
+      const base = restPose[nombre];
+      if (base) {
+        h.position.copy(base.position);
+        h.rotation.copy(base.rotation);
+        h.scale.copy(base.scale);
+      }
+    });
+    Object.entries(huesosGlbMap).forEach(([nombre, hGlb]) => {
+      const baseGlb = restPoseGlb[nombre];
+      if (baseGlb) {
+        hGlb.position.copy(baseGlb.position);
+        hGlb.rotation.copy(baseGlb.rotation);
+        hGlb.scale.copy(baseGlb.scale);
+      }
+    });
+  }
+
   function sincronizarAnclajes() {
     group.updateMatrixWorld(true);
     Object.entries(nodosAncla).forEach(([clave, nodo]) => {
@@ -391,76 +439,108 @@ export function crearCapaEsqueleto(opciones = {}) {
     });
   }
 
-  let ultimoParams = {};
-  let skinnedMeshGlb = null;
-  let huesosGlbMap = {};
+  // Pesos precalculados de distribución suave para columna lumbar (5), dorsal (12) y cervical (7)
+  const pesosCampanaLumbar = obtenerPesosCampana(5, 0.5, 0.32);
+  const pesosCampanaDorsal = obtenerPesosCampana(12, 0.55, 0.30);
+  const pesosArcoLumbar = obtenerPesosArcoEscoliosis(5);
+  const pesosArcoDorsal = obtenerPesosArcoEscoliosis(12);
   // ============================================================================
-// [BLOQUE 5] MOTOR CINEMÁTICO DE LOS 12 PARÁMETROS CLÍNICOS
-// Función: Transforma los 12 parámetros clínicos (cifosis, hiperlordosis,
-// escoliosis torácica/lumbar, antepulsión cervical, rotación craneal,
-// hombros adelantados, escápulas aladas, asimetría de hombros, morfología
-// costal, anteversión/retroversión y basculación pélvica) en rotaciones FK,
-// Morph Targets y actualización de anclajes.
+// [BLOQUE 5] MOTOR UNIFICADO applyAnatomyState(state)
+// Función: Único punto de entrada que (1) resetea a restPose, (2) valida y
+// acota el estado clínico, (3) aplica curvas suaves no lineales por segmento
+// anatómico y (4) actualiza matrices y anclajes para las capas superiores.
 // ============================================================================
-  function actualizar(params = {}) {
-    ultimoParams = { ...ultimoParams, ...params };
+  function applyAnatomyState(state = {}) {
+    ultimoParams = { ...ultimoParams, ...state };
 
-    const estaturaCm = ultimoParams.estaturaCm ?? 175;
+    // 1. Resetear todos los huesos a su postura neutra inicial
+    resetToRestPose();
+
+    // 2. Validar y acotar (clamping) cada parámetro clínico
+    const estaturaCm = acotar(ultimoParams.estaturaCm ?? 175, ...CLAMP_LIMITS.estaturaCm);
     const escalaAltura = estaturaCm / 175;
-    const anchoHombros = ultimoParams.anchoHombros ?? 1.0;
-    const anchoCadera = ultimoParams.anchoCadera ?? 1.0;
+    const anchoHombros = acotar(ultimoParams.anchoHombros ?? 1.0, 0.75, 1.35);
+    const anchoCadera = acotar(ultimoParams.anchoCadera ?? 1.0, 0.75, 1.35);
 
-    // Lectura de los 12 parámetros clínicos de la Capa 1
-    const cifosisDeg = ultimoParams.cifosisDeg ?? 0;
-    const hiperlordosisDeg = ultimoParams.hiperlordosisDeg ?? 0;
-    const escoliosisToracicaDeg =
-      ultimoParams.escoliosisToracicaDeg ?? ultimoParams.escoliosisDeg ?? 0;
-    const escoliosisLumbarDeg = ultimoParams.escoliosisLumbarDeg ?? 0;
+    const cifosisDeg = acotar(ultimoParams.cifosisDeg ?? 0, ...CLAMP_LIMITS.cifosisDeg);
+    const hiperlordosisDeg = acotar(ultimoParams.hiperlordosisDeg ?? 0, ...CLAMP_LIMITS.hiperlordosisDeg);
+    const escoliosisToracicaDeg = acotar(
+      ultimoParams.escoliosisToracicaDeg ?? ultimoParams.escoliosisDeg ?? 0,
+      ...CLAMP_LIMITS.escoliosisToracicaDeg
+    );
+    const escoliosisLumbarDeg = acotar(ultimoParams.escoliosisLumbarDeg ?? 0, ...CLAMP_LIMITS.escoliosisLumbarDeg);
 
-    const antepulsionCuelloCm = ultimoParams.antepulsionCuelloCm ?? 0;
-    const craneoPitchDeg = ultimoParams.craneoPitchDeg ?? 0;
-    const craneoYawDeg = ultimoParams.craneoYawDeg ?? 0;
-    const craneoRollDeg = ultimoParams.craneoRollDeg ?? 0;
+    const antepulsionCuelloCm = acotar(ultimoParams.antepulsionCuelloCm ?? 0, ...CLAMP_LIMITS.antepulsionCuelloCm);
+    const craneoPitchDeg = acotar(ultimoParams.craneoPitchDeg ?? 0, ...CLAMP_LIMITS.craneoPitchDeg);
+    const craneoYawDeg = acotar(ultimoParams.craneoYawDeg ?? 0, ...CLAMP_LIMITS.craneoYawDeg);
+    const craneoRollDeg = acotar(ultimoParams.craneoRollDeg ?? 0, ...CLAMP_LIMITS.craneoRollDeg);
 
-    const hombrosAdelantadosDeg = ultimoParams.hombrosAdelantadosDeg ?? 0;
-    const escapulasAladasDeg = ultimoParams.escapulasAladasDeg ?? 0;
-    const asimetriaHombrosCm = ultimoParams.asimetriaHombrosCm ?? 0;
-    const morfologiaTorax = ultimoParams.morfologiaTorax ?? 1.0;
+    const hombrosAdelantadosDeg = acotar(ultimoParams.hombrosAdelantadosDeg ?? 0, ...CLAMP_LIMITS.hombrosAdelantadosDeg);
+    const escapulasAladasDeg = acotar(ultimoParams.escapulasAladasDeg ?? 0, ...CLAMP_LIMITS.escapulasAladasDeg);
+    const asimetriaHombrosCm = acotar(ultimoParams.asimetriaHombrosCm ?? 0, ...CLAMP_LIMITS.asimetriaHombrosCm);
+    const morfologiaTorax = acotar(ultimoParams.morfologiaTorax ?? 1.0, ...CLAMP_LIMITS.morfologiaTorax);
 
-    const anteversionPelvicaDeg = ultimoParams.anteversionPelvicaDeg ?? 0;
-    const basculacionPelvicaDeg = ultimoParams.basculacionPelvicaDeg ?? 0;
+    const anteversionPelvicaDeg = acotar(ultimoParams.anteversionPelvicaDeg ?? 0, ...CLAMP_LIMITS.anteversionPelvicaDeg);
+    const basculacionPelvicaDeg = acotar(ultimoParams.basculacionPelvicaDeg ?? 0, ...CLAMP_LIMITS.basculacionPelvicaDeg);
 
-    // Escalado global proporcional a la estatura
     armatureRaiz.scale.setScalar(escalaAltura);
 
-    // D. Pelvis y Cadera: Anteversión/Retroversión (11) y Basculación lateral (12)
-    const antevRad = THREE.MathUtils.degToRad(anteversionPelvicaDeg);
-    const bascRad = THREE.MathUtils.degToRad(basculacionPelvicaDeg);
-    hPelvis.rotation.set(antevRad, 0, -bascRad);
+    // 3A. Pelvis y Cadera (Anteversión/Retroversión y Basculación Lateral)
+    const antevRad = THREE.MathUtils.degToRad(anteversionPelvicaDeg) * 0.85;
+    const bascRad = THREE.MathUtils.degToRad(basculacionPelvicaDeg) * 0.85;
+    hPelvis.rotation.x += antevRad;
+    hPelvis.rotation.z -= bascRad;
     mallaPelvis.scale.set(anchoCadera, 1, anchoCadera);
 
-    // Compensa la rotación en caderas para mantener ambos pies apoyados en y = 0
+    // Compensación articular en caderas para que las piernas no se crucen ni despeguen del piso
     cadPiernaIzq.hCadera.position.x = -0.098 * anchoCadera;
     cadPiernaDer.hCadera.position.x = 0.098 * anchoCadera;
-    cadPiernaIzq.hCadera.rotation.set(-antevRad, 0, bascRad);
-    cadPiernaDer.hCadera.rotation.set(-antevRad, 0, bascRad);
+    cadPiernaIzq.hCadera.rotation.x -= antevRad;
+    cadPiernaDer.hCadera.rotation.x -= antevRad;
+    cadPiernaIzq.hCadera.rotation.z += bascRad;
+    cadPiernaDer.hCadera.rotation.z += bascRad;
 
-    // A. Columna Lumbar (L5-L1): Hiperlordosis (2) y Escoliosis Lumbar (4)
-    const lordStep = THREE.MathUtils.degToRad(-hiperlordosisDeg) / hLumbares.length;
-    const escLumStep = THREE.MathUtils.degToRad(-escoliosisLumbarDeg) / hLumbares.length;
-    const compPelvisStep = -antevRad * 0.45 / hLumbares.length;
-    hLumbares.forEach((hL) => {
-      hL.rotation.set(lordStep + compPelvisStep, 0, escLumStep);
+    // 3B. Columna Lumbar L5..L1 (Distribución Gaussiana + Arco Compensado de Escoliosis)
+    const lordTotalRad = THREE.MathUtils.degToRad(-hiperlordosisDeg) * 0.95;
+    const escLumRad = THREE.MathUtils.degToRad(-escoliosisLumbarDeg) * 0.75;
+    let acumSagital = antevRad;
+    let acumFrontal = -bascRad;
+
+    hLumbares.forEach((hL, i) => {
+      // Compensación suave de la anteversión y basculación pélvica en las lumbares
+      const wCampana = pesosCampanaLumbar[i];
+      const wArco = pesosArcoLumbar[i];
+      const deltaX = lordTotalRad * wCampana - antevRad * wCampana * 0.65;
+      const deltaZ = escLumRad * wArco + bascRad * wCampana * 0.60;
+
+      hL.rotation.x += deltaX;
+      hL.rotation.z += deltaZ;
+      // Leve rotación axial acoplada a la escoliosis (ley de Fryette)
+      hL.rotation.y += deltaZ * 0.25;
+
+      acumSagital += hL.rotation.x;
+      acumFrontal += hL.rotation.z;
     });
 
-    // A. Columna Dorsal (T12-T1): Cifosis (1) y Escoliosis Torácica (3)
-    const cifoStep = THREE.MathUtils.degToRad(cifosisDeg) / hDorsales.length;
-    const escTorStep = THREE.MathUtils.degToRad(-escoliosisToracicaDeg) / hDorsales.length;
-    hDorsales.forEach((hT) => {
-      hT.rotation.set(cifoStep, 0, escTorStep);
+    // 3C. Columna Dorsal T12..T1 (Distribución Gaussiana + Arco en C/S Torácico)
+    const cifoTotalRad = THREE.MathUtils.degToRad(cifosisDeg) * 0.95;
+    const escTorRad = THREE.MathUtils.degToRad(-escoliosisToracicaDeg) * 0.80;
+
+    hDorsales.forEach((hT, i) => {
+      const wCampana = pesosCampanaDorsal[i];
+      const wArco = pesosArcoDorsal[i];
+      const deltaX = cifoTotalRad * wCampana;
+      const deltaZ = escTorRad * wArco;
+
+      hT.rotation.x += deltaX;
+      hT.rotation.z += deltaZ;
+      hT.rotation.y += deltaZ * 0.30;
+
+      acumSagital += hT.rotation.x;
+      acumFrontal += hT.rotation.z;
     });
 
-    // C. Morfología de la Caja Torácica y ángulo subcostal (10)
+    // 3D. Morfología de Caja Torácica (Shape Key / Escala Subcostal)
     cajaToracicaGrupo.scale.set(
       anchoHombros * morfologiaTorax,
       1.0,
@@ -472,64 +552,67 @@ export function crearCapaEsqueleto(opciones = {}) {
       c.scale.set(factorSubcostal, 0.82, 1.0);
     });
 
-    // B. Cuello (C7-C1) y Cráneo: Antepulsión (5) e Inclinación/Rotación (6)
+    // 3E. Cuello C7..C1 y Cráneo (Antepulsión + Enderezamiento Óptico + Pitch/Yaw/Roll)
     const antepM = (antepulsionCuelloCm / 100) / escalaAltura;
-    const flexCervicalStep = Math.atan2(antepM, 0.12) / hCervicales.length;
-    hCervicales.forEach((hC, idx) => {
-      hC.position.z = 0.002 + (antepM / hCervicales.length);
-      hC.rotation.set(flexCervicalStep * 0.55, 0, 0);
-      if (idx === hCervicales.length - 1) {
-        hC.rotation.x -= flexCervicalStep * 2.2;
-      }
+    const flexCervicalRad = Math.atan2(antepM, 0.12);
+
+    hCervicales.forEach((hC, i) => {
+      const t = i / (hCervicales.length - 1);
+      // C7-C4 flexionan hacia adelante; C3-C1 extienden para nivelar la vista
+      const perfilS = (1 - t * 1.65) * (flexCervicalRad / hCervicales.length);
+      hC.position.z += antepM / hCervicales.length;
+      hC.rotation.x += perfilS - (acumSagital * 0.08);
+      hC.rotation.z -= acumFrontal * 0.08;
     });
 
-    hCraneo.rotation.set(
-      THREE.MathUtils.degToRad(craneoPitchDeg) - cifoStep * 4.5,
-      THREE.MathUtils.degToRad(craneoYawDeg),
-      THREE.MathUtils.degToRad(craneoRollDeg) - escTorStep * 4.0
-    );
+    hCraneo.rotation.x += THREE.MathUtils.degToRad(craneoPitchDeg) - acumSagital * 0.35;
+    hCraneo.rotation.y += THREE.MathUtils.degToRad(craneoYawDeg);
+    hCraneo.rotation.z += THREE.MathUtils.degToRad(craneoRollDeg) - acumFrontal * 0.35;
 
-    // C. Cintura Escapular: Hombros adelantados (7), Escápulas aladas (8) y Asimetría (9)
+    // 3F. Cintura Escapular (Hombros Adelantados, Escápulas Aladas y Asimetría)
     const protraccionRad = THREE.MathUtils.degToRad(hombrosAdelantadosDeg);
     const aladaRad = THREE.MathUtils.degToRad(escapulasAladasDeg);
     const asimM = (asimetriaHombrosCm / 100) / escalaAltura;
 
-    function actualizarBrazoFK(cad, lado) {
+    function aplicarCinturaEscapular(cad, lado) {
       const s = lado === "L" ? -1 : 1;
       const deltaY = s * (asimM * 0.5);
 
-      cad.hClavicula.position.set(s * 0.025, 0.012 + deltaY, 0.045);
-      cad.hClavicula.rotation.set(0, -s * protraccionRad * 0.75, s * (deltaY * 4.2));
+      cad.hClavicula.position.y += deltaY;
+      cad.hClavicula.rotation.y += -s * protraccionRad * 0.72;
+      cad.hClavicula.rotation.z += s * (deltaY * 3.8);
 
-      cad.hEscapula.position.set(s * 0.068, 0.015 + deltaY, -0.042);
-      cad.hEscapula.rotation.set(aladaRad * 0.35, -s * (aladaRad + protraccionRad * 0.3), 0);
+      cad.hEscapula.position.y += deltaY;
+      cad.hEscapula.rotation.x += aladaRad * 0.35;
+      cad.hEscapula.rotation.y += -s * (aladaRad + protraccionRad * 0.32);
 
-      cad.hHombro.position.set(s * 0.165 * anchoHombros, -0.008, -0.022);
-      cad.hHombro.rotation.set(
-        protraccionRad * 0.65,
-        s * protraccionRad * 0.45,
-        -s * 0.17
-      );
-
-      cad.hCodo.rotation.set(-0.08, 0, -s * 0.05);
+      cad.hHombro.position.x = s * 0.165 * anchoHombros;
+      cad.hHombro.rotation.x += protraccionRad * 0.55;
+      cad.hHombro.rotation.y += s * protraccionRad * 0.40;
     }
-    actualizarBrazoFK(cadBrazoIzq, "L");
-    actualizarBrazoFK(cadBrazoDer, "R");
+    aplicarCinturaEscapular(cadBrazoIzq, "L");
+    aplicarCinturaEscapular(cadBrazoDer, "R");
 
-    // Transfiere rotaciones FK y Morph Targets al modelo .glb si está activo
+    // 4. Sincronizar con rig GLB externo si está cargado
     if (contenedorGlb.visible) {
       contenedorGlb.scale.setScalar(escalaAltura);
-      Object.entries(huesos).forEach(([nombre, huesoVirtual]) => {
-        const huesoGlb = huesosGlbMap[nombre];
-        if (huesoGlb) {
-          huesoGlb.rotation.copy(huesoVirtual.rotation);
+      Object.entries(huesos).forEach(([nombre, hVirtual]) => {
+        const hGlb = huesosGlbMap[nombre];
+        const baseVirtual = restPose[nombre];
+        const baseGlb = restPoseGlb[nombre];
+        if (hGlb && baseVirtual && baseGlb) {
+          hGlb.rotation.set(
+            baseGlb.rotation.x + (hVirtual.rotation.x - baseVirtual.rotation.x),
+            baseGlb.rotation.y + (hVirtual.rotation.y - baseVirtual.rotation.y),
+            baseGlb.rotation.z + (hVirtual.rotation.z - baseVirtual.rotation.z)
+          );
         }
       });
       if (skinnedMeshGlb?.morphTargetDictionary && skinnedMeshGlb?.morphTargetInfluences) {
         const idxTorax = skinnedMeshGlb.morphTargetDictionary["Ribcage_Width"];
         if (idxTorax !== undefined) {
           skinnedMeshGlb.morphTargetInfluences[idxTorax] = THREE.MathUtils.clamp(
-            (morfologiaTorax - 0.82) / 0.40,
+            (morfologiaTorax - 0.78) / 0.50,
             0,
             1
           );
@@ -537,12 +620,13 @@ export function crearCapaEsqueleto(opciones = {}) {
       }
     }
 
+    // 5. Actualizar matrices mundiales y puntos de anclaje
     sincronizarAnclajes();
-  }// ============================================================================
-// [BLOQUE 6] CARGADOR DE MODELOS .GLB RIGGEADOS Y EXPORTACIÓN DEL MÓDULO
-// Función: Carga un archivo .glb generado en Blender/bpy, enlaza sus huesos
-// internos (Bone) y Morph Targets (SkinnedMesh) al motor FK de la Capa 1,
-// oculta el fallback procedural y retorna la API pública del esqueleto.
+  }
+  // ============================================================================
+// [BLOQUE 6] CARGADOR .GLB CON CAPTURA DE POSE NEUTRA Y EXPORTACIÓN
+// Función: Importa un modelo .glb, registra la restPose original de sus huesos,
+// activa sus Morph Targets y exporta applyAnatomyState y actualizar.
 // ============================================================================
   function cargarModeloGLB(url) {
     if (!url) return Promise.resolve(false);
@@ -553,12 +637,17 @@ export function crearCapaEsqueleto(opciones = {}) {
         (gltf) => {
           contenedorGlb.clear();
           huesosGlbMap = {};
+          restPoseGlb = {};
           skinnedMeshGlb = null;
 
-          // Indexa huesos y mallas con skinning del archivo GLB
           gltf.scene.traverse((obj) => {
             if (obj.isBone) {
               huesosGlbMap[obj.name] = obj;
+              restPoseGlb[obj.name] = {
+                position: obj.position.clone(),
+                rotation: obj.rotation.clone(),
+                scale: obj.scale.clone()
+              };
             }
             if (obj.isMesh) {
               obj.castShadow = true;
@@ -571,9 +660,9 @@ export function crearCapaEsqueleto(opciones = {}) {
           });
 
           contenedorGlb.add(gltf.scene);
-          rigProcedural.visible = false;
+          armatureRaiz.visible = false;
           contenedorGlb.visible = true;
-          actualizar(ultimoParams);
+          applyAnatomyState(ultimoParams);
           resolve(true);
         },
         undefined,
@@ -582,14 +671,22 @@ export function crearCapaEsqueleto(opciones = {}) {
     });
   }
 
-  // Carga automática si se recibió una URL inicial en las opciones
   if (opciones.urlModeloGlb) {
     cargarModeloGLB(opciones.urlModeloGlb).catch(() => {
-      rigProcedural.visible = true;
+      armatureRaiz.visible = true;
       contenedorGlb.visible = false;
     });
   }
 
-  actualizar();
-  return { group, anclajes, huesos, actualizar, cargarModeloGLB };
+  applyAnatomyState();
+
+  return {
+    group,
+    anclajes,
+    huesos,
+    restPose,
+    applyAnatomyState,
+    actualizar: applyAnatomyState,
+    cargarModeloGLB
+  };
 }
