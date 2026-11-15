@@ -1,24 +1,21 @@
 // ============================================================================
-// VISAGELAB - CAPA 2: SISTEMA MUSCULAR (applyAnatomyState, ESCALAS 0-10 / 0-5 Y CM)
+// VISAGELAB - CAPA 2: SISTEMA MUSCULAR POR RAMAS Y SUB-RAMAS (applyAnatomyState)
 // ============================================================================
 
 // ============================================================================
 // [BLOQUE 1] IMPORTACIONES, TEXTURA PBR DE FIBRAS Y GEOMETRÍA MUSCULAR
-// Función: Importa Three.js y GLTFLoader, sintetiza en canvas 2D la textura
-// estriada de fibras miofibrilares con transición tendinosa (aponeurosis) y
-// define los constructores de vientres musculares orgánicos.
+// Función: Importa Three.js y GLTFLoader, genera proceduralmente la textura de
+// fibras estriadas y tendones, y construye vientres musculares fusiformes.
 // ============================================================================
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.158.0/build/three.module.js";
 import { GLTFLoader } from "https://cdn.jsdelivr.net/npm/three@0.158.0/examples/jsm/loaders/GLTFLoader.js";
 
-// Genera textura PBR con estriación longitudinal de fibras y extremos tendinosos
 function crearTexturaFibraMuscular() {
   const canvas = document.createElement("canvas");
   canvas.width = 256;
   canvas.height = 256;
   const ctx = canvas.getContext("2d");
 
-  // Gradiente longitudinal: tendón blanquecino en inserciones y vientre rojo profundo
   const grad = ctx.createLinearGradient(0, 0, 0, 256);
   grad.addColorStop(0.0, "#cbbba8");
   grad.addColorStop(0.14, "#a62c34");
@@ -28,7 +25,6 @@ function crearTexturaFibraMuscular() {
   ctx.fillStyle = grad;
   ctx.fillRect(0, 0, 256, 256);
 
-  // Haces de fibras musculares longitudinales para relieve anisotrópico
   for (let i = 0; i < 420; i++) {
     const x = Math.random() * 256;
     const grosor = 0.6 + Math.random() * 1.6;
@@ -46,7 +42,6 @@ function crearTexturaFibraMuscular() {
   return tex;
 }
 
-// Construye un vientre muscular fusiforme con inserciones tendinosas afinadas
 function crearVientreMuscular(rInsercion, rVientre, largo, picoNorm = 0.0, segRadial = 24, segAlto = 20) {
   const yPico = largo * picoNorm;
   const puntos = [
@@ -64,10 +59,10 @@ function crearVientreMuscular(rInsercion, rVientre, largo, picoNorm = 0.0, segRa
   return geo;
 }
 // ============================================================================
-// [BLOQUE 2] CONVERSIÓN DE ESCALAS (0-10, 0-5, CM, MUÑECA) Y CLAMPING SEGURO
-// Función: Aplica la regla de coherencia entre modos ("niveles" vs "centimetros")
-// y convierte los niveles de desarrollo (0-10 con base 4; 0-5 con base 2) o los
-// perímetros en cm en multiplicadores anatómicos acotados.
+// [BLOQUE 2] CONVERSIÓN DE ESCALAS (0-10, 0-5, CM, MUÑECA) Y LÍMITES SEGUROS
+// Función: Convierte los niveles de desarrollo (escala 0-10 con base 4 y escala
+// 0-5 con base 2), los perímetros en centímetros y los 3 niveles de muñeca en
+// factores volumétricos acotados sin choques entre modos.
 // ============================================================================
 const CLAMP_MUSCULO = {
   musculoGlobalKg: [15, 58],
@@ -84,36 +79,30 @@ function acotar(val, min, max) {
   return THREE.MathUtils.clamp(Number.isFinite(val) ? val : min, min, max);
 }
 
-// Escala de 0 a 10: 0 = abandono (0.64), 4 = base referencia (1.00), 5 = medio (1.08), 10 = extremo (1.54)
+// Escala 0 a 10: 0 = abandono (0.64), 4 = base referencia (1.00), 5 = medio (1.08), 10 = máximo (1.54)
 function factorDesdeNivel10(nivelRaw = 4) {
   const n = acotar(nivelRaw, ...CLAMP_MUSCULO.nivel10);
-  if (n <= 4) {
-    return THREE.MathUtils.lerp(0.64, 1.00, n / 4);
-  }
+  if (n <= 4) return THREE.MathUtils.lerp(0.64, 1.00, n / 4);
   return THREE.MathUtils.lerp(1.00, 1.54, (n - 4) / 6);
 }
 
-// Escala de 0 a 5: 0 = nulo (0.68), 2 = base referencia (1.00), 3 = estándar (1.12), 5 = máximo (1.42)
+// Escala 0 a 5: 0 = nulo (0.68), 2 = base referencia (1.00), 3 = estándar (1.12), 5 = máximo (1.42)
 function factorDesdeNivel5(nivelRaw = 2) {
   const n = acotar(nivelRaw, ...CLAMP_MUSCULO.nivel5);
-  if (n <= 2) {
-    return THREE.MathUtils.lerp(0.68, 1.00, n / 2);
-  }
+  if (n <= 2) return THREE.MathUtils.lerp(0.68, 1.00, n / 2);
   return THREE.MathUtils.lerp(1.00, 1.42, (n - 2) / 3);
 }
 
-// Prueba clínica de rodear la muñeca con los dedos: pequeña, normal o grande
+// Prueba de rodear la muñeca con los dedos: pequeña, normal o grande
 function factorDesdeMuneca(tipo = "normal") {
-  if (tipo === "pequena") return 0.86; // Los dedos se tocan o cruzan
-  if (tipo === "grande") return 1.15;  // Los dedos no alcanzan a tocarse
-  return 1.00;                         // Punto intermedio normal
+  if (tipo === "pequena") return 0.86;
+  if (tipo === "grande") return 1.15;
+  return 1.00;
 }
 // ============================================================================
-// [BLOQUE 3] VINCULACIÓN AL RIG Y CONSTRUCCIÓN DE GRUPOS MUSCULARES POR ZONA
-// Función: Crea los grupos musculares independientes (Deltoides 3 cabezas,
-// Bíceps/Tríceps/Antebrazo/Muñeca, Pectoral 3 porciones, Trapecio 3 porciones,
-// Romboides, Dorsal ancho, Cuello, Abdomen, Oblicuos, Lumbar, Glúteos,
-// Cuádriceps, Isquiotibiales y Gemelos) y registra su restPose inmutable.
+// [BLOQUE 3] CONSTRUCCIÓN DE MALLAS MUSCULARES POR SUB-RAMAS Y POSE NEUTRA
+// Función: Instancia cada porción y cabeza muscular como una malla independiente
+// vinculada a los nodos seguidores del esqueleto y guarda su restPose base.
 // ============================================================================
 export function crearCapaMusculo(opciones = {}) {
   const group = new THREE.Group();
@@ -162,18 +151,17 @@ export function crearCapaMusculo(opciones = {}) {
     return m;
   }
 
-  // Nodos seguidores que copian posición y rotación mundial del esqueleto (Capa 1)
   const nPelvis = new THREE.Group();
   const nCore = new THREE.Group();
   const nTorax = new THREE.Group();
   const nCuello = new THREE.Group();
   rigProcedural.add(nPelvis, nCore, nTorax, nCuello);
 
-  // 1. CUELLO (ECM y escalenos)
+  // Rama Cuello
   registrarMalla("cuelloIzq", crearVientreMuscular(0.012, 0.024, 0.12), nCuello, [-0.024, 0.01, 0.006], [0.10, 0, -0.12]);
   registrarMalla("cuelloDer", crearVientreMuscular(0.012, 0.024, 0.12), nCuello, [0.024, 0.01, 0.006], [0.10, 0, 0.12]);
 
-  // 2. PECHO: Pectoral Superior (clavicular), Medio (esternal) e Inferior (abdominal)
+  // Rama Pecho (Sub-ramas: Pectoral Superior, Medio e Inferior)
   [-1, 1].forEach((s) => {
     const lado = s < 0 ? "Izq" : "Der";
     const geoPec = new THREE.SphereGeometry(0.056, 20, 16);
@@ -182,7 +170,7 @@ export function crearCapaMusculo(opciones = {}) {
     registrarMalla(`pecInf${lado}`, geoPec, nTorax, [s * 0.058, 0.002, 0.070], [0.20, s * 0.15, -s * 0.12], [1.18, 0.38, 0.46]);
   });
 
-  // 3. ESPALDA MEDIA Y ALTA: Trapecio (Sup, Med, Inf), Romboides Mayor y Dorsal Ancho
+  // Rama Espalda Media y Alta (Sub-ramas: Trapecio Sup/Med/Inf, Romboides Mayor y Dorsal Ancho)
   [-1, 1].forEach((s) => {
     const lado = s < 0 ? "Izq" : "Der";
     registrarMalla(`trapSup${lado}`, crearVientreMuscular(0.014, 0.034, 0.14), nTorax, [s * 0.052, 0.118, -0.038], [0.15, 0, s * 0.62], [1.0, 1.0, 0.65]);
@@ -192,7 +180,7 @@ export function crearCapaMusculo(opciones = {}) {
     registrarMalla(`dorsal${lado}`, crearVientreMuscular(0.022, 0.068, 0.25, 0.12), nTorax, [s * 0.082, -0.022, -0.046], [0.06, -s * 0.22, -s * 0.18], [1.12, 1.0, 0.54]);
   });
 
-  // 4. CORE / ZONA MEDIA: Abdomen (Recto), Oblicuos Externos y Erectores Lumbares
+  // Rama Zona Media / Core (Sub-ramas: Abdomen, Oblicuos y Erectores Lumbares)
   registrarMalla("abdomen", crearVientreMuscular(0.042, 0.078, 0.24), nCore, [0, 0.01, 0.054], [0, 0, 0], [1.05, 1.0, 0.56]);
   [-1, 1].forEach((s) => {
     const lado = s < 0 ? "Izq" : "Der";
@@ -200,13 +188,13 @@ export function crearCapaMusculo(opciones = {}) {
     registrarMalla(`lumbar${lado}`, crearVientreMuscular(0.018, 0.034, 0.21), nCore, [s * 0.032, 0.0, -0.048], [0, 0, 0], [0.95, 1.0, 0.78]);
   });
 
-  // 5. GLÚTEOS (Mayor y Medio acoplados a la pelvis)
+  // Rama Glúteos
   [-1, 1].forEach((s) => {
     const lado = s < 0 ? "Izq" : "Der";
     registrarMalla(`gluteo${lado}`, new THREE.SphereGeometry(0.078, 22, 18), nPelvis, [s * 0.068, -0.018, -0.058], [0.14, s * 0.12, 0], [0.96, 0.94, 1.08]);
   });
 
-  // 6. EXTREMIDADES SUPERIORES (Deltoides 3 cabezas, Bíceps, Tríceps, Antebrazo, Muñeca)
+  // Rama Deltoides (3 cabezas) y Rama Brazos (Bíceps, Tríceps, Antebrazo, Muñeca)
   function construirBrazoMuscular(lado, signo) {
     const nHombro = new THREE.Group();
     const nBrazoSup = new THREE.Group();
@@ -229,7 +217,7 @@ export function crearCapaMusculo(opciones = {}) {
   const segBrazoIzq = construirBrazoMuscular("Izq", -1);
   const segBrazoDer = construirBrazoMuscular("Der", 1);
 
-  // 7. EXTREMIDADES INFERIORES (Cuádriceps, Isquiotibiales y Gemelos/Pantorrilla)
+  // Rama Muslos (Cuádriceps e Isquiotibiales) y Pantorrillas
   function construirPiernaMuscular(lado, signo) {
     const nMuslo = new THREE.Group();
     const nPiernaInf = new THREE.Group();
@@ -244,14 +232,13 @@ export function crearCapaMusculo(opciones = {}) {
   const segPiernaIzq = construirPiernaMuscular("Izq", -1);
   const segPiernaDer = construirPiernaMuscular("Der", 1);
   // ============================================================================
-// [BLOQUE 4] ALINEACIÓN CINEMÁTICA AL ESQUELETO Y RESET A POSE NEUTRA
-// Función: Restaura cada músculo a su restPose inicial antes de cada cálculo y
-// orienta los grupos musculares siguiendo los vectores y cuaterniones mundiales
-// de los anclajes de la Capa 1.
+// [BLOQUE 4] MOTOR UNIFICADO applyAnatomyState(state) POR RAMAS Y SUB-RAMAS
+// Función: Resetea las mallas a restPose, evalúa cada Gran Rama (Deltoides,
+// Brazos, Pecho, Espalda, Cuello, Core y Tren Inferior) según su modo activo
+// (General vs Desglosado y Nivel vs Centímetros) y sincroniza con el esqueleto.
 // ============================================================================
   const ejeY = new THREE.Vector3(0, 1, 0);
   const vDir = new THREE.Vector3();
-
   let ultimoParams = {};
   let skinnedMeshGlb = null;
 
@@ -266,7 +253,6 @@ export function crearCapaMusculo(opciones = {}) {
     });
   }
 
-  // Posiciona un grupo en el punto medio entre dos articulaciones y lo alinea con el hueso
   function alinearSegmentoEntreAnclajes(grupo, pSup, pInf) {
     grupo.position.lerpVectors(pSup, pInf, 0.5);
     vDir.subVectors(pSup, pInf);
@@ -277,16 +263,9 @@ export function crearCapaMusculo(opciones = {}) {
     }
     return largo;
   }
-  // ============================================================================
-// [BLOQUE 5] MOTOR UNIFICADO applyAnatomyState(state) DE LA CAPA MUSCULAR
-// Función: Resetea a restPose, resuelve sin conflicto el modo de medición
-// ("niveles" vs "centimetros"), calcula los factores de hipertrofia global y
-// zonal, y proyecta el volumen hacia afuera del hueso.
-// ============================================================================
+
   function applyAnatomyState(state = {}) {
     ultimoParams = { ...ultimoParams, ...state };
-
-    // 1. Resetear todas las mallas musculares a su pose neutra base
     resetToRestPose();
 
     const estaturaCm = acotar(ultimoParams.estaturaCm ?? 175, 140, 210);
@@ -294,56 +273,96 @@ export function crearCapaMusculo(opciones = {}) {
     const morfologia = ultimoParams.morfologia ?? "mesomorfo";
     const factorSomato = morfologia === "ectomorfo" ? 0.90 : (morfologia === "endomorfo" ? 0.98 : 1.04);
 
-    // Factor global en kilogramos (Masa Musculoesquelética tipo InBody, base 32 kg)
+    // Músculo General (Global en kg)
     const musculoGlobalKg = acotar(ultimoParams.musculoGlobalKg ?? 32, ...CLAMP_MUSCULO.musculoGlobalKg);
     const fGlobal = Math.cbrt(musculoGlobalKg / 32) * factorSomato;
 
-    // Regla de coherencia entre modos: "niveles" (0-10 / 0-5) o "centimetros" (cinta métrica)
-    const modoMusculo = ultimoParams.modoMusculo === "centimetros" ? "centimetros" : "niveles";
-    const esModoCm = modoMusculo === "centimetros";
+    // 1. GRAN RAMA DELTOIDES (Hombros):
+    // - Si modo === "general": permite "nivel" (0-10) o "cm" (contorno hombros).
+    // - Si modo === "desglosado": Anterior, Lateral y Posterior operan SOLO por nivel (0-10).
+    let fDeltAnt = 1, fDeltLat = 1, fDeltPost = 1;
+    if (ultimoParams.deltoidesModo === "desglosado") {
+      fDeltAnt = factorDesdeNivel10(ultimoParams.deltoidesAnterior ?? 4) * fGlobal;
+      fDeltLat = factorDesdeNivel10(ultimoParams.deltoidesLateral ?? 4) * fGlobal;
+      fDeltPost = factorDesdeNivel10(ultimoParams.deltoidesPosterior ?? 4) * fGlobal;
+    } else {
+      const fDeltGen = (ultimoParams.deltoidesUnidad === "cm"
+        ? acotar(ultimoParams.hombrosCm ?? 118, ...CLAMP_MUSCULO.hombrosCm) / 118
+        : factorDesdeNivel10(ultimoParams.deltoidesGeneralNivel ?? 4)) * fGlobal;
+      fDeltAnt = fDeltLat = fDeltPost = fDeltGen;
+    }
 
-    // Lectura y conversión sin conflicto por zona
-    // A. Hombros (Deltoides: Anterior, Lateral, Posterior o cm)
-    const fHombroCm = acotar(ultimoParams.hombrosCm ?? 118, ...CLAMP_MUSCULO.hombrosCm) / 118;
-    const fDeltAnt = (esModoCm ? fHombroCm : factorDesdeNivel10(ultimoParams.deltoidesAnterior ?? ultimoParams.hombrosNivel ?? 4)) * fGlobal;
-    const fDeltLat = (esModoCm ? fHombroCm : factorDesdeNivel10(ultimoParams.deltoidesLateral ?? ultimoParams.hombrosNivel ?? 4)) * fGlobal;
-    const fDeltPost = (esModoCm ? fHombroCm : factorDesdeNivel10(ultimoParams.deltoidesPosterior ?? ultimoParams.hombrosNivel ?? 4)) * fGlobal;
+    // 2. GRAN RAMA BRAZOS (Bíceps/Tríceps, Antebrazo y Muñeca):
+    // - Brazo superior en "general" (Brazo en L por nivel 0-10 o cm) vs "desglosado" (Bíceps 0-10 y Tríceps 0-10)
+    let fBiceps = 1, fTriceps = 1;
+    if (ultimoParams.brazoModo === "desglosado") {
+      fBiceps = factorDesdeNivel10(ultimoParams.bicepsNivel ?? 4) * fGlobal;
+      fTriceps = factorDesdeNivel10(ultimoParams.tricepsNivel ?? 4) * fGlobal;
+    } else {
+      const fBrazoGen = (ultimoParams.brazoUnidad === "cm"
+        ? acotar(ultimoParams.brazoCm ?? 35, ...CLAMP_MUSCULO.brazoCm) / 35
+        : factorDesdeNivel10(ultimoParams.brazoGeneralNivel ?? 4)) * fGlobal;
+      fBiceps = fTriceps = fBrazoGen;
+    }
 
-    // B. Brazos (Bíceps, Tríceps, Antebrazo y Muñeca)
-    const fBrazoCm = acotar(ultimoParams.brazoCm ?? ultimoParams.bicepsCm ?? 35, ...CLAMP_MUSCULO.brazoCm) / 35;
-    const fAntebrazoCm = acotar(ultimoParams.antebrazoCm ?? 28, ...CLAMP_MUSCULO.antebrazoCm) / 28;
-    const fBiceps = (esModoCm ? fBrazoCm : factorDesdeNivel10(ultimoParams.bicepsNivel ?? 4)) * fGlobal;
-    const fTriceps = (esModoCm ? fBrazoCm : factorDesdeNivel10(ultimoParams.tricepsNivel ?? 4)) * fGlobal;
-    const fAntebrazo = (esModoCm ? fAntebrazoCm : factorDesdeNivel10(ultimoParams.antebrazoNivel ?? 4)) * fGlobal;
+    // - Sub-rama Antebrazo: por nivel (0-10) o por centímetros (cm)
+    const fAntebrazo = (ultimoParams.antebrazoUnidad === "cm"
+      ? acotar(ultimoParams.antebrazoCm ?? 28, ...CLAMP_MUSCULO.antebrazoCm) / 28
+      : factorDesdeNivel10(ultimoParams.antebrazoNivel ?? 4)) * fGlobal;
+
+    // - Sub-rama Muñeca: 3 niveles (pequeña, normal, grande)
     const fMuneca = factorDesdeMuneca(ultimoParams.munecaTipo ?? "normal");
 
-    // C. Pecho (Superior, Medio, Inferior o cm a nivel de pezones)
-    const fPechoCm = acotar(ultimoParams.pechoCm ?? 100, ...CLAMP_MUSCULO.pechoCm) / 100;
-    const fPecSup = (esModoCm ? fPechoCm : factorDesdeNivel10(ultimoParams.pectoralSuperior ?? ultimoParams.pechoNivel ?? 4)) * fGlobal;
-    const fPecMed = (esModoCm ? fPechoCm : factorDesdeNivel10(ultimoParams.pectoralMedio ?? ultimoParams.pechoNivel ?? 4)) * fGlobal;
-    const fPecInf = (esModoCm ? fPechoCm : factorDesdeNivel10(ultimoParams.pectoralInferior ?? ultimoParams.pechoNivel ?? 4)) * fGlobal;
+    // 3. GRAN RAMA PECHO (Pectorales):
+    // - "general" (nivel 0-10 o cm a nivel de pezones) vs "desglosado" (Superior, Medio, Inferior en 0-10)
+    let fPecSup = 1, fPecMed = 1, fPecInf = 1;
+    if (ultimoParams.pechoModo === "desglosado") {
+      fPecSup = factorDesdeNivel10(ultimoParams.pectoralSuperior ?? 4) * fGlobal;
+      fPecMed = factorDesdeNivel10(ultimoParams.pectoralMedio ?? 4) * fGlobal;
+      fPecInf = factorDesdeNivel10(ultimoParams.pectoralInferior ?? 4) * fGlobal;
+    } else {
+      const fPechoGen = (ultimoParams.pechoUnidad === "cm"
+        ? acotar(ultimoParams.pechoCm ?? 100, ...CLAMP_MUSCULO.pechoCm) / 100
+        : factorDesdeNivel10(ultimoParams.pechoGeneralNivel ?? 4)) * fGlobal;
+      fPecSup = fPecMed = fPecInf = fPechoGen;
+    }
 
-    // D. Espalda Media y Alta (Trapecio 3 porciones, Romboides Mayor y Dorsal Ancho) - Escala 0 a 10
-    const fTrapSup = factorDesdeNivel10(ultimoParams.trapecioSuperior ?? ultimoParams.trapecioNivel ?? 4) * fGlobal;
-    const fTrapMed = factorDesdeNivel10(ultimoParams.trapecioMedio ?? ultimoParams.trapecioNivel ?? 4) * fGlobal;
-    const fTrapInf = factorDesdeNivel10(ultimoParams.trapecioInferior ?? ultimoParams.trapecioNivel ?? 4) * fGlobal;
+    // 4. GRAN RAMA ESPALDA MEDIA Y ALTA:
+    // - Sub-rama Trapecio: "general" (0-10) vs "desglosado" (Superior, Medio, Inferior en 0-10)
+    let fTrapSup = 1, fTrapMed = 1, fTrapInf = 1;
+    if (ultimoParams.trapecioModo === "desglosado") {
+      fTrapSup = factorDesdeNivel10(ultimoParams.trapecioSuperior ?? 4) * fGlobal;
+      fTrapMed = factorDesdeNivel10(ultimoParams.trapecioMedio ?? 4) * fGlobal;
+      fTrapInf = factorDesdeNivel10(ultimoParams.trapecioInferior ?? 4) * fGlobal;
+    } else {
+      const fTrapGen = factorDesdeNivel10(ultimoParams.trapecioGeneralNivel ?? 4) * fGlobal;
+      fTrapSup = fTrapMed = fTrapInf = fTrapGen;
+    }
     const fRomboides = factorDesdeNivel10(ultimoParams.romboidesNivel ?? 4) * fGlobal;
     const fDorsal = factorDesdeNivel10(ultimoParams.dorsalAnchoNivel ?? 4) * fGlobal;
 
-    // E. Cuello, Abdomen, Oblicuos y Zona Lumbar - Escala 0 a 5
+    // 5. GRAN RAMA CUELLO Y CORE (Escala 0 a 5, base 2)
     const fCuello = factorDesdeNivel5(ultimoParams.cuelloNivel ?? 2) * fGlobal;
     const fAbdomen = factorDesdeNivel5(ultimoParams.abdomenNivel ?? 2) * fGlobal;
     const fOblicuos = factorDesdeNivel5(ultimoParams.oblicuosNivel ?? 2) * fGlobal;
     const fLumbar = factorDesdeNivel5(ultimoParams.lumbarNivel ?? 2) * fGlobal;
 
-    // F. Glúteos (0 a 10), Muslos/Isquiotibiales (0 a 10 o cm) y Pantorrillas (0 a 5)
+    // 6. GRAN RAMA TREN INFERIOR:
+    // - Glúteos (0-10), Muslos ("general" en nivel/cm vs "desglosado" Cuádriceps/Isquiotibiales 0-10), Pantorrillas (0-5)
     const fGluteos = factorDesdeNivel10(ultimoParams.gluteosNivel ?? 4) * fGlobal;
-    const fMusloCm = acotar(ultimoParams.musloCm ?? 56, ...CLAMP_MUSCULO.musloCm) / 56;
-    const fCuadriceps = (esModoCm ? fMusloCm : factorDesdeNivel10(ultimoParams.cuadricepsNivel ?? 4)) * fGlobal;
-    const fIsquios = (esModoCm ? fMusloCm : factorDesdeNivel10(ultimoParams.isquiotibialesNivel ?? 4)) * fGlobal;
+    let fCuadriceps = 1, fIsquios = 1;
+    if (ultimoParams.musloModo === "desglosado") {
+      fCuadriceps = factorDesdeNivel10(ultimoParams.cuadricepsNivel ?? 4) * fGlobal;
+      fIsquios = factorDesdeNivel10(ultimoParams.isquiotibialesNivel ?? 4) * fGlobal;
+    } else {
+      const fMusloGen = (ultimoParams.musloUnidad === "cm"
+        ? acotar(ultimoParams.musloCm ?? 56, ...CLAMP_MUSCULO.musloCm) / 56
+        : factorDesdeNivel10(ultimoParams.musloGeneralNivel ?? 4)) * fGlobal;
+      fCuadriceps = fIsquios = fMusloGen;
+    }
     const fPantorrilla = factorDesdeNivel5(ultimoParams.pantorrillaNivel ?? 2) * fGlobal;
 
-    // 2. Sincronizar los nodos seguidores con los anclajes mundiales del esqueleto (Capa 1)
+    // Sincronización espacial con los anclajes del esqueleto (Capa 1)
     const anc = ultimoParams.anclajes;
     if (anc?.pelvis && anc?.torax) {
       nPelvis.position.copy(anc.pelvis);
@@ -354,7 +373,6 @@ export function crearCapaMusculo(opciones = {}) {
       if (anc.torax.quat) nTorax.quaternion.copy(anc.torax.quat);
       nTorax.scale.setScalar(escalaAltura);
 
-      // El núcleo (Core: abdomen, oblicuos y lumbares) interpola entre pelvis y tórax
       nCore.position.lerpVectors(anc.pelvis, anc.torax, 0.46);
       if (anc.pelvis.quat && anc.torax.quat) {
         nCore.quaternion.slerpQuaternions(anc.pelvis.quat, anc.torax.quat, 0.5);
@@ -367,7 +385,6 @@ export function crearCapaMusculo(opciones = {}) {
         nCuello.scale.setScalar(escalaAltura);
       }
 
-      // Alineación de brazos y piernas entre sus articulaciones
       const configurarExtremidadSup = (seg, pHombro, pCodo, pMuneca) => {
         seg.nHombro.position.copy(pHombro);
         if (pHombro.quat) seg.nHombro.quaternion.copy(pHombro.quat);
@@ -403,16 +420,14 @@ export function crearCapaMusculo(opciones = {}) {
       }
     }
 
-    // 3. Aplicar hipertrofia zonal y proyección radial hacia afuera (sin atravesar el hueso)
+    // Aplicación de escalas y desplazamientos radiales hacia afuera del hueso
     const morfoTorax = acotar(ultimoParams.morfologiaTorax ?? 1.0, 0.78, 1.28);
 
     ["Izq", "Der"].forEach((lado) => {
       const s = lado === "Izq" ? -1 : 1;
 
-      // Cuello
       mallas[`cuello${lado}`].scale.multiply(new THREE.Vector3(fCuello, 1.0, fCuello));
 
-      // Pectorales (3 porciones) con proyección anterior sobre la caja torácica
       mallas[`pecSup${lado}`].scale.multiply(new THREE.Vector3(fPecSup * morfoTorax, fPecSup, fPecSup));
       mallas[`pecSup${lado}`].position.z += (fPecSup - 1) * 0.016 + (morfoTorax - 1) * 0.03;
 
@@ -422,7 +437,6 @@ export function crearCapaMusculo(opciones = {}) {
       mallas[`pecInf${lado}`].scale.multiply(new THREE.Vector3(fPecInf * morfoTorax, fPecInf, fPecInf));
       mallas[`pecInf${lado}`].position.z += (fPecInf - 1) * 0.018 + (morfoTorax - 1) * 0.03;
 
-      // Espalda: Trapecio (3 porciones), Romboides y Dorsal Ancho ("V" dorsal)
       mallas[`trapSup${lado}`].scale.multiply(new THREE.Vector3(fTrapSup, fTrapSup, fTrapSup));
       mallas[`trapMed${lado}`].scale.multiply(new THREE.Vector3(fTrapMed, fTrapMed, fTrapMed));
       mallas[`trapInf${lado}`].scale.multiply(new THREE.Vector3(fTrapInf, fTrapInf, fTrapInf));
@@ -431,17 +445,14 @@ export function crearCapaMusculo(opciones = {}) {
       mallas[`dorsal${lado}`].scale.multiply(new THREE.Vector3(fDorsal * morfoTorax, 1.0, fDorsal));
       mallas[`dorsal${lado}`].position.x += s * (fDorsal - 1) * 0.025;
 
-      // Oblicuos y Erectores Lumbares
       mallas[`oblicuo${lado}`].scale.multiply(new THREE.Vector3(fOblicuos, 1.0, fOblicuos));
       mallas[`oblicuo${lado}`].position.x += s * (fOblicuos - 1) * 0.012;
       mallas[`lumbar${lado}`].scale.multiply(new THREE.Vector3(fLumbar, 1.0, fLumbar));
       mallas[`lumbar${lado}`].position.z -= (fLumbar - 1) * 0.010;
 
-      // Glúteos (proyección posterior y lateral)
       mallas[`gluteo${lado}`].scale.multiply(new THREE.Vector3(fGluteos, fGluteos, fGluteos));
       mallas[`gluteo${lado}`].position.z -= (fGluteos - 1) * 0.022;
 
-      // Hombros: Deltoides Anterior, Lateral y Posterior
       mallas[`deltAnt${lado}`].scale.multiply(new THREE.Vector3(fDeltAnt, 1.0, fDeltAnt));
       mallas[`deltAnt${lado}`].position.z += (fDeltAnt - 1) * 0.010;
 
@@ -451,7 +462,6 @@ export function crearCapaMusculo(opciones = {}) {
       mallas[`deltPost${lado}`].scale.multiply(new THREE.Vector3(fDeltPost, 1.0, fDeltPost));
       mallas[`deltPost${lado}`].position.z -= (fDeltPost - 1) * 0.010;
 
-      // Brazos: Bíceps, Tríceps, Antebrazo y Muñeca
       mallas[`biceps${lado}`].scale.multiply(new THREE.Vector3(fBiceps, 1.0, fBiceps));
       mallas[`biceps${lado}`].position.z += (fBiceps - 1) * 0.012;
 
@@ -461,7 +471,6 @@ export function crearCapaMusculo(opciones = {}) {
       mallas[`antebrazo${lado}`].scale.multiply(new THREE.Vector3(fAntebrazo, 1.0, fAntebrazo));
       mallas[`muneca${lado}`].scale.multiply(new THREE.Vector3(fMuneca, 1.0, fMuneca));
 
-      // Piernas: Cuádriceps, Isquiotibiales y Gemelos
       mallas[`cuadriceps${lado}`].scale.multiply(new THREE.Vector3(fCuadriceps, 1.0, fCuadriceps));
       mallas[`cuadriceps${lado}`].position.z += (fCuadriceps - 1) * 0.014;
 
@@ -472,14 +481,12 @@ export function crearCapaMusculo(opciones = {}) {
       mallas[`pantorrilla${lado}`].position.z -= (fPantorrilla - 1) * 0.012;
     });
 
-    // Abdomen anterior
     mallas.abdomen.scale.multiply(new THREE.Vector3(fAbdomen, 1.0, fAbdomen));
     mallas.abdomen.position.z += (fAbdomen - 1) * 0.012;
-  }
-  // ============================================================================
-// [BLOQUE 6] SOPORTE PARA .GLB MUSCULAR CON MORPH TARGETS Y EXPORTACIÓN
-// Función: Permite cargar una malla muscular .glb con Shape Keys exportada de
-// Blender y expone applyAnatomyState y actualizar para el visor principal.
+  }// ============================================================================
+// [BLOQUE 5] CARGADOR .GLB MUSCULAR Y EXPORTACIÓN PÚBLICA
+// Función: Permite cargar una malla muscular .glb exportada desde Blender y
+// devuelve la interfaz pública de la Capa 2.
 // ============================================================================
   function cargarModeloGLB(url) {
     if (!url) return Promise.resolve(false);
