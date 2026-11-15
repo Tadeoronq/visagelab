@@ -721,12 +721,17 @@
     actualizarArbolYEtiquetas(leerParametros());
   </script>
 
+  <!-- ============================================================================
+  [BLOQUE 5] MOTOR WEBGL THREE.JS CON ROMPEDOR DE CACHÉ (?v=3)
+  Función: Importa las 4 capas forzando al navegador a ignorar el memory cache
+  antiguo y sincroniza applyAnatomyState / actualizar sin errores.
+  ============================================================================ -->
   <script type="module">
     import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.158.0/build/three.module.js";
-    import { crearCapaEsqueleto } from "./capa_esqueleto.js";
-    import { crearCapaMusculo } from "./capa_musculo.js";
-    import { crearCapaGrasa } from "./capa_grasa.js";
-    import { crearCapaPiel } from "./capa_piel.js";
+    import { crearCapaEsqueleto } from "./capa_esqueleto.js?v=3";
+    import { crearCapaMusculo } from "./capa_musculo.js?v=3";
+    import { crearCapaGrasa } from "./capa_grasa.js?v=3";
+    import { crearCapaPiel } from "./capa_piel.js?v=3";
 
     const visorW = () => Math.max(300, visorEl.clientWidth || window.innerWidth - 410);
     const visorH = () => Math.max(300, visorEl.clientHeight || window.innerHeight);
@@ -768,16 +773,17 @@
 
     window.aplicarCambios = aplicarCambios = () => {
       try {
+        errorBox.style.display = "none";
         const p = leerParametros();
         Object.entries(visibilidad).forEach(([clave, activa]) => {
           capas[clave].group.visible = activa;
         });
 
-        capaEsqueleto.applyAnatomyState(p);
+        (capaEsqueleto.applyAnatomyState || capaEsqueleto.actualizar)(p);
         const contexto = { ...p, anclajes: capaEsqueleto.anclajes };
-        capaMusculo.applyAnatomyState(contexto);
-        capaGrasa.actualizar(contexto);
-        capaPiel.actualizar(contexto);
+        (capaMusculo.applyAnatomyState || capaMusculo.actualizar)(contexto);
+        (capaGrasa.applyAnatomyState || capaGrasa.actualizar)(contexto);
+        (capaPiel.applyAnatomyState || capaPiel.actualizar)(contexto);
       } catch (err) {
         mostrarError(err.message || String(err));
       }
@@ -826,5 +832,3 @@
     }
     bucleAnimacion();
   </script>
-</body>
-</html>
