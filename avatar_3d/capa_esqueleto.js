@@ -1,103 +1,139 @@
 // ============================================================================
-// VISAGELAB - CAPA 1: ESTRUCTURA DEL ESQUELETO
-// Módulo independiente para postura base estática y futuras integraciones
+// VISAGELAB - CAPA 1: ESQUELETO HUMANO ORGÁNICO
 // ============================================================================
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.158.0/build/three.module.js";
 
-/**
- * Crea la Capa 1 (Esqueleto) con soporte para parámetros posturales
- * (escoliosis, cifosis, hombros adelantados) y puntos de anclaje para las
- * siguientes capas (músculo, grasa, piel) y futura integración de datos.
- */
+function crearHuesoOrganico(rSup, rMed, rInf, alto, segRadial = 24, segAlto = 18) {
+  const puntos = [
+    new THREE.Vector2(0.001, -alto * 0.5),
+    new THREE.Vector2(rInf * 0.92, -alto * 0.45),
+    new THREE.Vector2(rInf, -alto * 0.32),
+    new THREE.Vector2(rMed, 0),
+    new THREE.Vector2(rSup, alto * 0.32),
+    new THREE.Vector2(rSup * 0.92, alto * 0.45),
+    new THREE.Vector2(0.001, alto * 0.5)
+  ];
+  const curva = new THREE.SplineCurve(puntos);
+  const geo = new THREE.LatheGeometry(curva.getPoints(segAlto), segRadial);
+  geo.computeVertexNormals();
+  return geo;
+}
+
 export function crearCapaEsqueleto() {
-  // ==========================================================================
-  // BLOQUE 1: GRUPO, MATERIAL ÓSEO Y HELPERS GEOMÉTRICOS
-  // ==========================================================================
   const group = new THREE.Group();
   group.name = "CapaEsqueleto";
 
   const materialHueso = new THREE.MeshStandardMaterial({
-    color: new THREE.Color("#ece7dc"),
-    roughness: 0.36,
-    metalness: 0.05
+    color: new THREE.Color("#f0eadc"),
+    roughness: 0.38,
+    metalness: 0.04
   });
 
-  function crearSegmentoOseo(radioSuperior, radioInferior, largo, segmentos = 18) {
-    const geometria = new THREE.CylinderGeometry(radioSuperior, radioInferior, largo, segmentos);
-    const malla = new THREE.Mesh(geometria, materialHueso);
-    malla.castShadow = true;
-    malla.receiveShadow = true;
-    return malla;
+  const materialArticulacion = new THREE.MeshStandardMaterial({
+    color: new THREE.Color("#dfd7c5"),
+    roughness: 0.45,
+    metalness: 0.02
+  });
+
+  function mallaHueso(geo, mat = materialHueso) {
+    const m = new THREE.Mesh(geo, mat);
+    m.castShadow = true;
+    m.receiveShadow = true;
+    return m;
   }
 
-  function crearArticulacion(radio, segmentos = 16) {
-    const geometria = new THREE.SphereGeometry(radio, segmentos, segmentos);
-    const malla = new THREE.Mesh(geometria, materialHueso);
-    malla.castShadow = true;
-    malla.receiveShadow = true;
-    return malla;
+  // Cráneo y mandíbula esculpidos
+  const craneoGrupo = new THREE.Group();
+  const neurocraneo = mallaHueso(new THREE.SphereGeometry(0.095, 28, 24));
+  neurocraneo.scale.set(0.86, 1.08, 1.04);
+  const mandibula = mallaHueso(new THREE.SphereGeometry(0.068, 20, 18));
+  mandibula.scale.set(0.78, 0.65, 0.95);
+  mandibula.position.set(0, -0.055, 0.024);
+  const cervical = mallaHueso(crearHuesoOrganico(0.017, 0.015, 0.019, 0.09));
+  cervical.position.set(0, -0.105, -0.005);
+  craneoGrupo.add(neurocraneo, mandibula, cervical);
+
+  // Columna vertebral (lumbar + dorsal) y caja torácica con costillas
+  const columnaLumbar = mallaHueso(crearHuesoOrganico(0.022, 0.020, 0.027, 0.24));
+  const columnaDorsal = mallaHueso(crearHuesoOrganico(0.018, 0.019, 0.022, 0.28));
+
+  const toraxGrupo = new THREE.Group();
+  const esternon = mallaHueso(crearHuesoOrganico(0.018, 0.014, 0.010, 0.17));
+  esternon.position.set(0, 0.01, 0.095);
+  toraxGrupo.add(esternon);
+
+  const costillas = [];
+  for (let i = 0; i < 6; i++) {
+    const t = i / 5;
+    const radioCostilla = THREE.MathUtils.lerp(0.095, 0.132, Math.sin(t * Math.PI * 0.78));
+    const geoCostilla = new THREE.TorusGeometry(radioCostilla, 0.0085, 10, 28, Math.PI * 1.45);
+    const costilla = mallaHueso(geoCostilla);
+    costilla.rotation.x = Math.PI * 0.48;
+    costilla.rotation.z = Math.PI * 0.78;
+    costilla.position.set(0, 0.09 - i * 0.036, 0.01);
+    costilla.scale.set(1.05, 0.82, 1.0);
+    toraxGrupo.add(costilla);
+    costillas.push(costilla);
   }
 
-  // ==========================================================================
-  // BLOQUE 2: ESTRUCTURA ÓSEA BASE Y PUNTOS DE ANCLAJE
-  // ==========================================================================
-  const craneo = crearArticulacion(0.095, 22);
-  const pelvis = new THREE.Mesh(new THREE.BoxGeometry(0.25, 0.11, 0.14), materialHueso);
-  pelvis.castShadow = true;
-  pelvis.receiveShadow = true;
+  // Pelvis anatómica (cuenco pélvico + crestas iliacas)
+  const pelvisGrupo = new THREE.Group();
+  const sacro = mallaHueso(crearHuesoOrganico(0.032, 0.022, 0.014, 0.11));
+  sacro.position.set(0, 0, -0.045);
+  const cuencoPelvico = mallaHueso(new THREE.TorusGeometry(0.105, 0.024, 14, 28, Math.PI * 1.35));
+  cuencoPelvico.rotation.x = Math.PI * 0.46;
+  cuencoPelvico.rotation.z = -Math.PI * 0.175;
+  cuencoPelvico.scale.set(1.15, 0.85, 1.1);
+  pelvisGrupo.add(sacro, cuencoPelvico);
 
-  // Columna (lumbar y dorsal) y caja torácica
-  const columnaLumbar = crearSegmentoOseo(0.024, 0.030, 0.24);
-  const columnaDorsal = crearSegmentoOseo(0.020, 0.025, 0.30);
-  const torax = crearSegmentoOseo(0.145, 0.115, 0.25);
+  // Extremidades superiores (clavícula, húmero, radio/cúbito, mano)
+  function crearBrazoOseo(signo) {
+    const g = new THREE.Group();
+    const clavicula = mallaHueso(crearHuesoOrganico(0.010, 0.008, 0.011, 0.15));
+    clavicula.rotation.z = signo * (Math.PI * 0.42);
+    clavicula.rotation.x = 0.15;
 
-  // Extremidades superiores
-  const hombroIzq = crearArticulacion(0.026);
-  const humeroIzq = crearSegmentoOseo(0.021, 0.017, 0.28);
-  const codoIzq = crearArticulacion(0.020);
-  const antebrazoIzq = crearSegmentoOseo(0.017, 0.013, 0.26);
+    const hombro = mallaHueso(new THREE.SphereGeometry(0.025, 18, 18), materialArticulacion);
+    const humero = mallaHueso(crearHuesoOrganico(0.022, 0.016, 0.019, 0.28));
+    const codo = mallaHueso(new THREE.SphereGeometry(0.019, 16, 16), materialArticulacion);
+    const antebrazo = mallaHueso(crearHuesoOrganico(0.017, 0.014, 0.011, 0.25));
+    const mano = mallaHueso(new THREE.BoxGeometry(0.022, 0.085, 0.062));
 
-  const hombroDer = crearArticulacion(0.026);
-  const humeroDer = crearSegmentoOseo(0.021, 0.017, 0.28);
-  const codoDer = crearArticulacion(0.020);
-  const antebrazoDer = crearSegmentoOseo(0.017, 0.013, 0.26);
+    g.add(clavicula, hombro, humero, codo, antebrazo, mano);
+    return { g, clavicula, hombro, humero, codo, antebrazo, mano };
+  }
 
-  // Extremidades inferiores
-  const caderaIzq = crearArticulacion(0.032);
-  const femurIzq = crearSegmentoOseo(0.029, 0.023, 0.42);
-  const rodillaIzq = crearArticulacion(0.026);
-  const tibiaIzq = crearSegmentoOseo(0.023, 0.017, 0.42);
+  const brazoIzqOseo = crearBrazoOseo(-1);
+  const brazoDerOseo = crearBrazoOseo(1);
 
-  const caderaDer = crearArticulacion(0.032);
-  const femurDer = crearSegmentoOseo(0.029, 0.023, 0.42);
-  const rodillaDer = crearArticulacion(0.026);
-  const tibiaDer = crearSegmentoOseo(0.023, 0.017, 0.42);
+  // Extremidades inferiores (fémur, rótula, tibia/peroné, pie)
+  function crearPiernaOsea() {
+    const g = new THREE.Group();
+    const cadera = mallaHueso(new THREE.SphereGeometry(0.032, 18, 18), materialArticulacion);
+    const femur = mallaHueso(crearHuesoOrganico(0.028, 0.022, 0.026, 0.41));
+    const rodilla = mallaHueso(new THREE.SphereGeometry(0.025, 18, 18), materialArticulacion);
+    const tibia = mallaHueso(crearHuesoOrganico(0.024, 0.017, 0.015, 0.40));
+    const pie = mallaHueso(new THREE.BoxGeometry(0.065, 0.036, 0.19));
+
+    g.add(cadera, femur, rodilla, tibia, pie);
+    return { g, cadera, femur, rodilla, tibia, pie };
+  }
+
+  const piernaIzqOsea = crearPiernaOsea();
+  const piernaDerOsea = crearPiernaOsea();
 
   group.add(
-    craneo,
-    pelvis,
+    craneoGrupo,
     columnaLumbar,
     columnaDorsal,
-    torax,
-    hombroIzq,
-    humeroIzq,
-    codoIzq,
-    antebrazoIzq,
-    hombroDer,
-    humeroDer,
-    codoDer,
-    antebrazoDer,
-    caderaIzq,
-    femurIzq,
-    rodillaIzq,
-    tibiaIzq,
-    caderaDer,
-    femurDer,
-    rodillaDer,
-    tibiaDer
+    toraxGrupo,
+    pelvisGrupo,
+    brazoIzqOseo.g,
+    brazoDerOseo.g,
+    piernaIzqOsea.g,
+    piernaDerOsea.g
   );
 
-  // Puntos de referencia para acoplar músculo, grasa y piel en las siguientes capas
   const anclajes = {
     pelvis: new THREE.Vector3(),
     torax: new THREE.Vector3(),
@@ -112,14 +148,10 @@ export function crearCapaEsqueleto() {
     rodillaDer: new THREE.Vector3()
   };
 
-  // ==========================================================================
-  // BLOQUE 3: ACTUALIZACIÓN DE PROPORCIONES Y ALTERACIONES POSTURALES
-  // ==========================================================================
   function actualizar(params = {}) {
     const estaturaCm = params.estaturaCm ?? 175;
     const anchoHombros = params.anchoHombros ?? 1.0;
     const anchoCadera = params.anchoCadera ?? 1.0;
-
     const escoliosisDeg = params.escoliosisDeg ?? params.desviacionColumnaDeg ?? 0;
     const cifosisDeg = params.cifosisDeg ?? 0;
     const hombrosAdelantadosDeg = params.hombrosAdelantadosDeg ?? 0;
@@ -129,60 +161,56 @@ export function crearCapaEsqueleto() {
     const cifoRad = THREE.MathUtils.degToRad(cifosisDeg);
     const protraccionRad = THREE.MathUtils.degToRad(hombrosAdelantadosDeg);
 
-    // Base apoyada sobre y = 0
-    const margenTobillo = 0.03 * escalaAltura;
-    const largoSegmentoPierna = 0.42 * escalaAltura;
-    const yCadera = margenTobillo + largoSegmentoPierna * 2;
-    const yRodilla = margenTobillo + largoSegmentoPierna;
+    const altoTobillo = 0.04 * escalaAltura;
+    const largoFemur = 0.41 * escalaAltura;
+    const largoTibia = 0.40 * escalaAltura;
+    const yRodilla = altoTobillo + largoTibia;
+    const yCadera = yRodilla + largoFemur;
 
-    // Pelvis y piernas
-    pelvis.scale.set(anchoCadera, escalaAltura, anchoCadera);
-    pelvis.position.set(0, yCadera, 0);
-    anclajes.pelvis.copy(pelvis.position);
+    pelvisGrupo.scale.set(anchoCadera, escalaAltura, anchoCadera);
+    pelvisGrupo.position.set(0, yCadera, 0);
+    anclajes.pelvis.copy(pelvisGrupo.position);
 
-    const sepPierna = 0.105 * anchoCadera;
+    const sepPierna = 0.102 * anchoCadera;
 
-    caderaIzq.scale.setScalar(escalaAltura);
-    caderaIzq.position.set(-sepPierna, yCadera, 0);
-    anclajes.caderaIzq.copy(caderaIzq.position);
+    function posicionarPierna(p, signo) {
+      const x = signo * sepPierna;
+      p.cadera.scale.setScalar(escalaAltura);
+      p.cadera.position.set(x, yCadera, 0);
 
-    femurIzq.scale.set(1, escalaAltura, 1);
-    femurIzq.position.set(-sepPierna, yCadera - largoSegmentoPierna * 0.5, 0);
+      p.femur.scale.set(1, escalaAltura, 1);
+      p.femur.position.set(x, yCadera - largoFemur * 0.5, 0.01);
+      p.femur.rotation.x = -0.03;
 
-    rodillaIzq.scale.setScalar(escalaAltura);
-    rodillaIzq.position.set(-sepPierna, yRodilla, 0);
-    anclajes.rodillaIzq.copy(rodillaIzq.position);
+      p.rodilla.scale.setScalar(escalaAltura);
+      p.rodilla.position.set(x, yRodilla, 0.015);
 
-    tibiaIzq.scale.set(1, escalaAltura, 1);
-    tibiaIzq.position.set(-sepPierna, margenTobillo + largoSegmentoPierna * 0.5, 0);
+      p.tibia.scale.set(1, escalaAltura, 1);
+      p.tibia.position.set(x, altoTobillo + largoTibia * 0.5, 0.008);
 
-    caderaDer.scale.setScalar(escalaAltura);
-    caderaDer.position.set(sepPierna, yCadera, 0);
-    anclajes.caderaDer.copy(caderaDer.position);
+      p.pie.scale.set(1, escalaAltura, escalaAltura);
+      p.pie.position.set(x, 0.018 * escalaAltura, 0.045 * escalaAltura);
+    }
 
-    femurDer.scale.set(1, escalaAltura, 1);
-    femurDer.position.set(sepPierna, yCadera - largoSegmentoPierna * 0.5, 0);
+    posicionarPierna(piernaIzqOsea, -1);
+    posicionarPierna(piernaDerOsea, 1);
+    anclajes.caderaIzq.copy(piernaIzqOsea.cadera.position);
+    anclajes.rodillaIzq.copy(piernaIzqOsea.rodilla.position);
+    anclajes.caderaDer.copy(piernaDerOsea.cadera.position);
+    anclajes.rodillaDer.copy(piernaDerOsea.rodilla.position);
 
-    rodillaDer.scale.setScalar(escalaAltura);
-    rodillaDer.position.set(sepPierna, yRodilla, 0);
-    anclajes.rodillaDer.copy(rodillaDer.position);
-
-    tibiaDer.scale.set(1, escalaAltura, 1);
-    tibiaDer.position.set(sepPierna, margenTobillo + largoSegmentoPierna * 0.5, 0);
-
-    // Columna lumbar, columna dorsal, tórax y cráneo
     const largoLumbar = 0.24 * escalaAltura;
-    const largoDorsal = 0.30 * escalaAltura;
+    const largoDorsal = 0.28 * escalaAltura;
 
     const dxLumbar = Math.sin(escolRad * 0.5) * (largoLumbar * 0.5);
-    const dzLumbar = Math.sin(cifoRad * 0.35) * (largoLumbar * 0.5);
+    const dzLumbar = Math.sin(cifoRad * 0.35) * (largoLumbar * 0.5) - 0.025;
     columnaLumbar.scale.set(1, escalaAltura, 1);
-    columnaLumbar.position.set(dxLumbar, yCadera + largoLumbar * 0.5, -0.035 + dzLumbar);
+    columnaLumbar.position.set(dxLumbar, yCadera + largoLumbar * 0.5, dzLumbar);
     columnaLumbar.rotation.z = -escolRad * 0.5;
     columnaLumbar.rotation.x = cifoRad * 0.35;
 
     const xBaseDorsal = Math.sin(escolRad * 0.5) * largoLumbar;
-    const zBaseDorsal = -0.035 + Math.sin(cifoRad * 0.35) * largoLumbar;
+    const zBaseDorsal = dzLumbar + Math.sin(cifoRad * 0.35) * (largoLumbar * 0.5);
     columnaDorsal.scale.set(1, escalaAltura, 1);
     columnaDorsal.position.set(
       xBaseDorsal + Math.sin(escolRad) * (largoDorsal * 0.5),
@@ -192,100 +220,84 @@ export function crearCapaEsqueleto() {
     columnaDorsal.rotation.z = -escolRad;
     columnaDorsal.rotation.x = cifoRad;
 
-    const dxTorax = xBaseDorsal + Math.sin(escolRad) * (largoDorsal * 0.65);
+    const dxTorax = xBaseDorsal + Math.sin(escolRad) * (largoDorsal * 0.62);
     const yTorax = yCadera + 0.39 * escalaAltura;
-    const dzTorax = zBaseDorsal + Math.sin(cifoRad) * (largoDorsal * 0.65) + 0.035;
+    const dzTorax = zBaseDorsal + Math.sin(cifoRad) * (largoDorsal * 0.62) + 0.02;
 
-    torax.scale.set(anchoHombros, escalaAltura, anchoHombros * 0.9);
-    torax.position.set(dxTorax, yTorax, dzTorax);
-    torax.rotation.z = -escolRad;
-    torax.rotation.x = cifoRad;
-    anclajes.torax.copy(torax.position);
+    toraxGrupo.scale.set(anchoHombros, escalaAltura, anchoHombros * 0.92);
+    toraxGrupo.position.set(dxTorax, yTorax, dzTorax);
+    toraxGrupo.rotation.z = -escolRad;
+    toraxGrupo.rotation.x = cifoRad;
+    anclajes.torax.copy(toraxGrupo.position);
 
     const dxCabeza = dxTorax + Math.sin(escolRad) * (0.28 * escalaAltura);
     const yCabeza = yCadera + 0.69 * escalaAltura;
-    const dzCabeza = dzTorax + Math.sin(cifoRad) * (0.20 * escalaAltura);
+    const dzCabeza = dzTorax + Math.sin(cifoRad) * (0.20 * escalaAltura) + 0.015;
 
-    craneo.scale.setScalar(escalaAltura);
-    craneo.position.set(dxCabeza, yCabeza, dzCabeza);
-    craneo.rotation.z = -escolRad;
-    craneo.rotation.x = cifoRad * 0.7;
-    anclajes.craneo.copy(craneo.position);
+    craneoGrupo.scale.setScalar(escalaAltura);
+    craneoGrupo.position.set(dxCabeza, yCabeza, dzCabeza);
+    craneoGrupo.rotation.z = -escolRad;
+    craneoGrupo.rotation.x = cifoRad * 0.7;
+    anclajes.craneo.copy(craneoGrupo.position);
 
-    // Extremidades superiores y protracción de hombros
     const yHombro = yCadera + 0.49 * escalaAltura;
     const dzHombro = dzTorax + Math.sin(protraccionRad) * (0.14 * escalaAltura);
-    const xHombroIzq = dxTorax - 0.19 * anchoHombros;
-    const xHombroDer = dxTorax + 0.19 * anchoHombros;
-
-    const angAbertura = 0.22;
     const segBrazo = 0.28 * escalaAltura;
-    const segAnt = 0.26 * escalaAltura;
+    const segAnt = 0.25 * escalaAltura;
+    const angAbertura = 0.18;
 
-    hombroIzq.scale.setScalar(escalaAltura);
-    hombroIzq.position.set(xHombroIzq, yHombro, dzHombro);
-    anclajes.hombroIzq.copy(hombroIzq.position);
+    function posicionarBrazo(b, signo) {
+      const xHombro = dxTorax + signo * 0.195 * anchoHombros;
+      b.clavicula.scale.set(anchoHombros, escalaAltura, escalaAltura);
+      b.clavicula.position.set(dxTorax + signo * 0.095 * anchoHombros, yHombro + 0.012 * escalaAltura, dzHombro + 0.035);
 
-    humeroIzq.scale.set(1, escalaAltura, 1);
-    humeroIzq.rotation.z = -angAbertura;
-    humeroIzq.rotation.x = protraccionRad * 0.65;
-    humeroIzq.position.set(
-      xHombroIzq - Math.sin(angAbertura) * (segBrazo * 0.5),
-      yHombro - Math.cos(angAbertura) * (segBrazo * 0.5),
-      dzHombro + Math.sin(protraccionRad * 0.65) * (segBrazo * 0.4)
-    );
+      b.hombro.scale.setScalar(escalaAltura);
+      b.hombro.position.set(xHombro, yHombro, dzHombro);
 
-    const xCodoIzq = xHombroIzq - Math.sin(angAbertura) * segBrazo;
-    const yCodoIzq = yHombro - Math.cos(angAbertura) * segBrazo;
-    const zCodoIzq = dzHombro + Math.sin(protraccionRad * 0.65) * (segBrazo * 0.8);
+      b.humero.scale.set(1, escalaAltura, 1);
+      b.humero.rotation.z = -signo * angAbertura;
+      b.humero.rotation.x = protraccionRad * 0.65;
+      b.humero.position.set(
+        xHombro + signo * Math.sin(angAbertura) * (segBrazo * 0.5),
+        yHombro - Math.cos(angAbertura) * (segBrazo * 0.5),
+        dzHombro + Math.sin(protraccionRad * 0.65) * (segBrazo * 0.4)
+      );
 
-    codoIzq.scale.setScalar(escalaAltura);
-    codoIzq.position.set(xCodoIzq, yCodoIzq, zCodoIzq);
-    anclajes.codoIzq.copy(codoIzq.position);
+      const xCodo = xHombro + signo * Math.sin(angAbertura) * segBrazo;
+      const yCodo = yHombro - Math.cos(angAbertura) * segBrazo;
+      const zCodo = dzHombro + Math.sin(protraccionRad * 0.65) * (segBrazo * 0.8);
 
-    const angAntIzq = angAbertura + 0.08;
-    antebrazoIzq.scale.set(1, escalaAltura, 1);
-    antebrazoIzq.rotation.z = -angAntIzq;
-    antebrazoIzq.rotation.x = protraccionRad * 0.4;
-    antebrazoIzq.position.set(
-      xCodoIzq - Math.sin(angAntIzq) * (segAnt * 0.5),
-      yCodoIzq - Math.cos(angAntIzq) * (segAnt * 0.5),
-      zCodoIzq + Math.sin(protraccionRad * 0.4) * (segAnt * 0.4)
-    );
+      b.codo.scale.setScalar(escalaAltura);
+      b.codo.position.set(xCodo, yCodo, zCodo);
 
-    hombroDer.scale.setScalar(escalaAltura);
-    hombroDer.position.set(xHombroDer, yHombro, dzHombro);
-    anclajes.hombroDer.copy(hombroDer.position);
+      const angAnt = angAbertura + 0.06;
+      b.antebrazo.scale.set(1, escalaAltura, 1);
+      b.antebrazo.rotation.z = -signo * angAnt;
+      b.antebrazo.rotation.x = protraccionRad * 0.4;
+      b.antebrazo.position.set(
+        xCodo + signo * Math.sin(angAnt) * (segAnt * 0.5),
+        yCodo - Math.cos(angAnt) * (segAnt * 0.5),
+        zCodo + Math.sin(protraccionRad * 0.4) * (segAnt * 0.4)
+      );
 
-    humeroDer.scale.set(1, escalaAltura, 1);
-    humeroDer.rotation.z = angAbertura;
-    humeroDer.rotation.x = protraccionRad * 0.65;
-    humeroDer.position.set(
-      xHombroDer + Math.sin(angAbertura) * (segBrazo * 0.5),
-      yHombro - Math.cos(angAbertura) * (segBrazo * 0.5),
-      dzHombro + Math.sin(protraccionRad * 0.65) * (segBrazo * 0.4)
-    );
+      b.mano.scale.setScalar(escalaAltura);
+      b.mano.rotation.z = -signo * angAnt;
+      b.mano.rotation.x = protraccionRad * 0.4;
+      b.mano.position.set(
+        xCodo + signo * Math.sin(angAnt) * (segAnt + 0.04 * escalaAltura),
+        yCodo - Math.cos(angAnt) * (segAnt + 0.04 * escalaAltura),
+        zCodo + Math.sin(protraccionRad * 0.4) * (segAnt * 0.75)
+      );
+    }
 
-    const xCodoDer = xHombroDer + Math.sin(angAbertura) * segBrazo;
-    const yCodoDer = yHombro - Math.cos(angAbertura) * segBrazo;
-    const zCodoDer = dzHombro + Math.sin(protraccionRad * 0.65) * (segBrazo * 0.8);
-
-    codoDer.scale.setScalar(escalaAltura);
-    codoDer.position.set(xCodoDer, yCodoDer, zCodoDer);
-    anclajes.codoDer.copy(codoDer.position);
-
-    const angAntDer = angAbertura + 0.08;
-    antebrazoDer.scale.set(1, escalaAltura, 1);
-    antebrazoDer.rotation.z = angAntDer;
-    antebrazoDer.rotation.x = protraccionRad * 0.4;
-    antebrazoDer.position.set(
-      xCodoDer + Math.sin(angAntDer) * (segAnt * 0.5),
-      yCodoDer - Math.cos(angAntDer) * (segAnt * 0.5),
-      zCodoDer + Math.sin(protraccionRad * 0.4) * (segAnt * 0.4)
-    );
+    posicionarBrazo(brazoIzqOseo, -1);
+    posicionarBrazo(brazoDerOseo, 1);
+    anclajes.hombroIzq.copy(brazoIzqOseo.hombro.position);
+    anclajes.codoIzq.copy(brazoIzqOseo.codo.position);
+    anclajes.hombroDer.copy(brazoDerOseo.hombro.position);
+    anclajes.codoDer.copy(brazoDerOseo.codo.position);
   }
 
   actualizar();
-
   return { group, anclajes, actualizar };
 }
