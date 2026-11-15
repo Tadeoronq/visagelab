@@ -5,9 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>VisageLab - Visor Avatar 3D (4 Capas)</title>
   <style>
-    /* =========================================================================
-       BLOQUE 1: ESTILOS DEL VISOR 3D Y PANEL DE INSPECCIÓN
-       ========================================================================= */
     * { box-sizing: border-box; margin: 0; padding: 0; font-family: system-ui, -apple-system, sans-serif; }
     body {
       background: #090d14;
@@ -126,9 +123,6 @@
     </div>
   </div>
 
-  <!-- =========================================================================
-       BLOQUE 2: CONTROLES BÁSICOS DE CAPAS Y PRUEBA DE PARÁMETROS
-       ========================================================================= -->
   <aside id="panel">
     <div class="tarjeta">
       <h3>Visibilidad de Capas</h3>
@@ -180,7 +174,7 @@
         </select></label>
       </div>
       <div class="control">
-        <label>Color de piel <input type="color" id="color-piel" value="#d6a37c" /></label>
+        <label>Color de piel <input type="color" id="color-piel" value="#d9a37a" /></label>
       </div>
       <div class="control">
         <label>Peso <span class="val" id="v-peso">75.0 kg</span></label>
@@ -202,9 +196,6 @@
   </aside>
 
   <script type="module">
-    // =========================================================================
-    // BLOQUE 3: IMPORTACIÓN DE LAS 4 CAPAS Y MONTAJE DE ESCENA THREE.JS
-    // =========================================================================
     import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.158.0/build/three.module.js";
     import { crearCapaEsqueleto } from "./capa_esqueleto.js";
     import { crearCapaMusculo } from "./capa_musculo.js";
@@ -212,11 +203,28 @@
     import { crearCapaPiel } from "./capa_piel.js";
 
     const contenedor = document.getElementById("visor-3d");
-    const escena = new THREE.Scene();
 
+    function mostrarError(msg) {
+      let box = document.getElementById("error-visor");
+      if (!box) {
+        box = document.createElement("div");
+        box.id = "error-visor";
+        box.style.cssText =
+          "position:absolute;bottom:14px;left:14px;right:14px;background:#450a0a;color:#fecaca;border:1px solid #f87171;padding:10px 14px;border-radius:8px;font-size:12px;z-index:20;";
+        contenedor.appendChild(box);
+      }
+      box.textContent = "Error en visor 3D: " + msg;
+    }
+
+    window.addEventListener("error", (e) => mostrarError(e.message || String(e)));
+    window.addEventListener("unhandledrejection", (e) =>
+      mostrarError(e.reason?.message || String(e.reason))
+    );
+
+    const escena = new THREE.Scene();
     const camara = new THREE.PerspectiveCamera(
       42,
-      contenedor.clientWidth / contenedor.clientHeight,
+      Math.max(1, contenedor.clientWidth) / Math.max(1, contenedor.clientHeight),
       0.1,
       100
     );
@@ -227,23 +235,20 @@
     renderizador.shadowMap.enabled = true;
     contenedor.appendChild(renderizador.domElement);
 
-    escena.add(new THREE.AmbientLight(0xffffff, 0.75));
+    escena.add(new THREE.AmbientLight(0xffffff, 0.85));
 
-    const luzPrincipal = new THREE.DirectionalLight(0xffffff, 1.15);
+    const luzPrincipal = new THREE.DirectionalLight(0xffffff, 1.2);
     luzPrincipal.position.set(2.5, 4, 3);
     luzPrincipal.castShadow = true;
     escena.add(luzPrincipal);
 
-    const luzRelleno = new THREE.DirectionalLight(0x5eead4, 0.5);
+    const luzRelleno = new THREE.DirectionalLight(0x5eead4, 0.55);
     luzRelleno.position.set(-3, 2, -2);
     escena.add(luzRelleno);
 
     const rejilla = new THREE.GridHelper(4, 16, 0x2dd4bf, 0x1e293b);
     escena.add(rejilla);
 
-    // =========================================================================
-    // BLOQUE 4: INSTANCIACIÓN Y SINCRONIZACIÓN DE LAS 4 CAPAS
-    // =========================================================================
     const avatarRaiz = new THREE.Group();
     escena.add(avatarRaiz);
 
@@ -313,23 +318,24 @@
     }
 
     function refrescarAvatar() {
-      const p = leerParametros();
-      actualizarEtiquetas(p);
+      try {
+        const p = leerParametros();
+        actualizarEtiquetas(p);
 
-      Object.entries(visibilidad).forEach(([clave, activa]) => {
-        capas[clave].group.visible = activa;
-      });
+        Object.entries(visibilidad).forEach(([clave, activa]) => {
+          capas[clave].group.visible = activa;
+        });
 
-      capaEsqueleto.actualizar(p);
-      const contexto = { ...p, anclajes: capaEsqueleto.anclajes };
-      capaMusculo.actualizar(contexto);
-      capaGrasa.actualizar(contexto);
-      capaPiel.actualizar(contexto);
+        capaEsqueleto.actualizar(p);
+        const contexto = { ...p, anclajes: capaEsqueleto.anclajes };
+        capaMusculo.actualizar(contexto);
+        capaGrasa.actualizar(contexto);
+        capaPiel.actualizar(contexto);
+      } catch (err) {
+        mostrarError(err.message || String(err));
+      }
     }
 
-    // =========================================================================
-    // BLOQUE 5: CONTROLES DE CAPAS, ROTACIÓN TÁCTIL / MOUSE Y RENDERIZADO
-    // =========================================================================
     document.querySelectorAll(".btn-capa").forEach((btn) => {
       btn.addEventListener("click", () => {
         const nombreCapa = btn.dataset.capa;
@@ -383,7 +389,7 @@
     }, { passive: false });
 
     window.addEventListener("resize", () => {
-      camara.aspect = contenedor.clientWidth / contenedor.clientHeight;
+      camara.aspect = Math.max(1, contenedor.clientWidth) / Math.max(1, contenedor.clientHeight);
       camara.updateProjectionMatrix();
       renderizador.setSize(contenedor.clientWidth, contenedor.clientHeight);
     });
