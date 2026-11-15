@@ -1,160 +1,219 @@
 // ============================================================================
-// VISAGELAB - CAPA 1: ESQUELETO HUMANO ORGÁNICO
+// VISAGELAB - CAPA 1: ESQUELETO (BASE POSTURAL, ANCLAJES Y SOPORTE GLB/PBR)
 // ============================================================================
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.158.0/build/three.module.js";
+import { GLTFLoader } from "https://cdn.jsdelivr.net/npm/three@0.158.0/examples/jsm/loaders/GLTFLoader.js";
 
-function crearHuesoOrganico(rSup, rMed, rInf, alto, segRadial = 24, segAlto = 18) {
+function crearTexturaPorosidadOsea() {
+  const canvas = document.createElement("canvas");
+  canvas.width = 256;
+  canvas.height = 256;
+  const ctx = canvas.getContext("2d");
+
+  ctx.fillStyle = "#efe8d8";
+  ctx.fillRect(0, 0, 256, 256);
+
+  // Micro-porosidad y vetas sutiles del hueso cortical
+  for (let i = 0; i < 2400; i++) {
+    const x = Math.random() * 256;
+    const y = Math.random() * 256;
+    const r = 0.5 + Math.random() * 1.4;
+    const osc = Math.random() > 0.5 ? "rgba(185, 172, 148, 0.22)" : "rgba(255, 252, 245, 0.28)";
+    ctx.fillStyle = osc;
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.wrapS = THREE.RepeatWrapping;
+  tex.wrapT = THREE.RepeatWrapping;
+  tex.repeat.set(2, 4);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
+
+function crearDiafisis(rExtremos, rCentro, largo, segRadial = 28, segCurva = 20) {
   const puntos = [
-    new THREE.Vector2(0.001, -alto * 0.5),
-    new THREE.Vector2(rInf * 0.92, -alto * 0.45),
-    new THREE.Vector2(rInf, -alto * 0.32),
-    new THREE.Vector2(rMed, 0),
-    new THREE.Vector2(rSup, alto * 0.32),
-    new THREE.Vector2(rSup * 0.92, alto * 0.45),
-    new THREE.Vector2(0.001, alto * 0.5)
+    new THREE.Vector2(0.001, -largo * 0.5),
+    new THREE.Vector2(rExtremos * 1.15, -largo * 0.44),
+    new THREE.Vector2(rExtremos, -largo * 0.34),
+    new THREE.Vector2(rCentro, 0),
+    new THREE.Vector2(rExtremos, largo * 0.34),
+    new THREE.Vector2(rExtremos * 1.15, largo * 0.44),
+    new THREE.Vector2(0.001, largo * 0.5)
   ];
   const curva = new THREE.SplineCurve(puntos);
-  const geo = new THREE.LatheGeometry(curva.getPoints(segAlto), segRadial);
+  const geo = new THREE.LatheGeometry(curva.getPoints(segCurva), segRadial);
   geo.computeVertexNormals();
   return geo;
 }
 
-export function crearCapaEsqueleto() {
+export function crearCapaEsqueleto(opciones = {}) {
   const group = new THREE.Group();
   group.name = "CapaEsqueleto";
 
-  const materialHueso = new THREE.MeshStandardMaterial({
-    color: new THREE.Color("#f0eadc"),
-    roughness: 0.38,
-    metalness: 0.04
+  const texturaHueso = crearTexturaPorosidadOsea();
+
+  const materialHueso = new THREE.MeshPhysicalMaterial({
+    color: new THREE.Color("#f3ede0"),
+    map: texturaHueso,
+    bumpMap: texturaHueso,
+    bumpScale: 0.003,
+    roughness: 0.44,
+    metalness: 0.02,
+    clearcoat: 0.12,
+    clearcoatRoughness: 0.55
   });
 
-  const materialArticulacion = new THREE.MeshStandardMaterial({
-    color: new THREE.Color("#dfd7c5"),
-    roughness: 0.45,
-    metalness: 0.02
+  const materialArticulacion = new THREE.MeshPhysicalMaterial({
+    color: new THREE.Color("#dfd5c0"),
+    map: texturaHueso,
+    bumpMap: texturaHueso,
+    bumpScale: 0.002,
+    roughness: 0.52,
+    metalness: 0.01
   });
 
-  function mallaHueso(geo, mat = materialHueso) {
+  const rigProcedural = new THREE.Group();
+  rigProcedural.name = "EsqueletoProcedural";
+  group.add(rigProcedural);
+
+  const contenedorGlb = new THREE.Group();
+  contenedorGlb.name = "EsqueletoGLB";
+  contenedorGlb.visible = false;
+  group.add(contenedorGlb);
+
+  function malla(geo, mat = materialHueso) {
     const m = new THREE.Mesh(geo, mat);
     m.castShadow = true;
     m.receiveShadow = true;
     return m;
   }
 
-  // Cráneo y mandíbula esculpidos
+  // 1. Cráneo, mandíbula y columna cervical
   const craneoGrupo = new THREE.Group();
-  const neurocraneo = mallaHueso(new THREE.SphereGeometry(0.095, 28, 24));
-  neurocraneo.scale.set(0.86, 1.08, 1.04);
-  const mandibula = mallaHueso(new THREE.SphereGeometry(0.068, 20, 18));
-  mandibula.scale.set(0.78, 0.65, 0.95);
-  mandibula.position.set(0, -0.055, 0.024);
-  const cervical = mallaHueso(crearHuesoOrganico(0.017, 0.015, 0.019, 0.09));
-  cervical.position.set(0, -0.105, -0.005);
-  craneoGrupo.add(neurocraneo, mandibula, cervical);
+  const craneo = malla(new THREE.SphereGeometry(0.094, 32, 26));
+  craneo.scale.set(0.86, 1.10, 1.05);
+  const mandibula = malla(new THREE.SphereGeometry(0.064, 24, 20));
+  mandibula.scale.set(0.76, 0.58, 0.92);
+  mandibula.position.set(0, -0.056, 0.022);
+  const cervical = malla(crearDiafisis(0.018, 0.015, 0.095));
+  cervical.position.set(0, -0.105, -0.006);
+  craneoGrupo.add(craneo, mandibula, cervical);
 
-  // Columna vertebral (lumbar + dorsal) y caja torácica con costillas
-  const columnaLumbar = mallaHueso(crearHuesoOrganico(0.022, 0.020, 0.027, 0.24));
-  const columnaDorsal = mallaHueso(crearHuesoOrganico(0.018, 0.019, 0.022, 0.28));
+  // 2. Columna vertebral y jaula torácica (esternón + costillas)
+  const columnaLumbar = malla(crearDiafisis(0.024, 0.020, 0.24));
+  const columnaDorsal = malla(crearDiafisis(0.021, 0.019, 0.28));
 
   const toraxGrupo = new THREE.Group();
-  const esternon = mallaHueso(crearHuesoOrganico(0.018, 0.014, 0.010, 0.17));
-  esternon.position.set(0, 0.01, 0.095);
+  const esternon = malla(crearDiafisis(0.016, 0.013, 0.165));
+  esternon.position.set(0, 0.01, 0.092);
   toraxGrupo.add(esternon);
 
-  const costillas = [];
   for (let i = 0; i < 6; i++) {
     const t = i / 5;
-    const radioCostilla = THREE.MathUtils.lerp(0.095, 0.132, Math.sin(t * Math.PI * 0.78));
-    const geoCostilla = new THREE.TorusGeometry(radioCostilla, 0.0085, 10, 28, Math.PI * 1.45);
-    const costilla = mallaHueso(geoCostilla);
+    const radio = THREE.MathUtils.lerp(0.092, 0.128, Math.sin(t * Math.PI * 0.78));
+    const geoCostilla = new THREE.TorusGeometry(radio, 0.0075, 12, 32, Math.PI * 1.42);
+    const costilla = malla(geoCostilla);
     costilla.rotation.x = Math.PI * 0.48;
-    costilla.rotation.z = Math.PI * 0.78;
-    costilla.position.set(0, 0.09 - i * 0.036, 0.01);
-    costilla.scale.set(1.05, 0.82, 1.0);
+    costilla.rotation.z = Math.PI * 0.79;
+    costilla.position.set(0, 0.088 - i * 0.035, 0.008);
+    costilla.scale.set(1.04, 0.80, 1.0);
     toraxGrupo.add(costilla);
-    costillas.push(costilla);
   }
 
-  // Pelvis anatómica (cuenco pélvico + crestas iliacas)
+  // 3. Pelvis (sacro + alas iliacas)
   const pelvisGrupo = new THREE.Group();
-  const sacro = mallaHueso(crearHuesoOrganico(0.032, 0.022, 0.014, 0.11));
-  sacro.position.set(0, 0, -0.045);
-  const cuencoPelvico = mallaHueso(new THREE.TorusGeometry(0.105, 0.024, 14, 28, Math.PI * 1.35));
-  cuencoPelvico.rotation.x = Math.PI * 0.46;
-  cuencoPelvico.rotation.z = -Math.PI * 0.175;
-  cuencoPelvico.scale.set(1.15, 0.85, 1.1);
-  pelvisGrupo.add(sacro, cuencoPelvico);
+  const sacro = malla(crearDiafisis(0.032, 0.022, 0.11));
+  sacro.position.set(0, 0, -0.042);
+  const cinturaPelvica = malla(new THREE.TorusGeometry(0.102, 0.022, 14, 32, Math.PI * 1.35));
+  cinturaPelvica.rotation.x = Math.PI * 0.46;
+  cinturaPelvica.rotation.z = -Math.PI * 0.175;
+  cinturaPelvica.scale.set(1.14, 0.84, 1.08);
+  pelvisGrupo.add(sacro, cinturaPelvica);
 
-  // Extremidades superiores (clavícula, húmero, radio/cúbito, mano)
-  function crearBrazoOseo(signo) {
+  // 4. Extremidades superiores
+  function crearBrazo(signo) {
     const g = new THREE.Group();
-    const clavicula = mallaHueso(crearHuesoOrganico(0.010, 0.008, 0.011, 0.15));
+    const clavicula = malla(crearDiafisis(0.011, 0.008, 0.15));
     clavicula.rotation.z = signo * (Math.PI * 0.42);
-    clavicula.rotation.x = 0.15;
+    clavicula.rotation.x = 0.14;
 
-    const hombro = mallaHueso(new THREE.SphereGeometry(0.025, 18, 18), materialArticulacion);
-    const humero = mallaHueso(crearHuesoOrganico(0.022, 0.016, 0.019, 0.28));
-    const codo = mallaHueso(new THREE.SphereGeometry(0.019, 16, 16), materialArticulacion);
-    const antebrazo = mallaHueso(crearHuesoOrganico(0.017, 0.014, 0.011, 0.25));
-    const mano = mallaHueso(new THREE.BoxGeometry(0.022, 0.085, 0.062));
+    const hombro = malla(new THREE.SphereGeometry(0.024, 20, 18), materialArticulacion);
+    const humero = malla(crearDiafisis(0.022, 0.016, 0.28));
+    const codo = malla(new THREE.SphereGeometry(0.018, 18, 16), materialArticulacion);
+    const antebrazo = malla(crearDiafisis(0.017, 0.013, 0.25));
+    const muneca = malla(new THREE.SphereGeometry(0.014, 16, 14), materialArticulacion);
+    const mano = malla(new THREE.BoxGeometry(0.020, 0.082, 0.056));
 
-    g.add(clavicula, hombro, humero, codo, antebrazo, mano);
-    return { g, clavicula, hombro, humero, codo, antebrazo, mano };
+    g.add(clavicula, hombro, humero, codo, antebrazo, muneca, mano);
+    return { g, clavicula, hombro, humero, codo, antebrazo, muneca, mano };
   }
 
-  const brazoIzqOseo = crearBrazoOseo(-1);
-  const brazoDerOseo = crearBrazoOseo(1);
+  const brazoIzq = crearBrazo(-1);
+  const brazoDer = crearBrazo(1);
 
-  // Extremidades inferiores (fémur, rótula, tibia/peroné, pie)
-  function crearPiernaOsea() {
+  // 5. Extremidades inferiores
+  function crearPierna() {
     const g = new THREE.Group();
-    const cadera = mallaHueso(new THREE.SphereGeometry(0.032, 18, 18), materialArticulacion);
-    const femur = mallaHueso(crearHuesoOrganico(0.028, 0.022, 0.026, 0.41));
-    const rodilla = mallaHueso(new THREE.SphereGeometry(0.025, 18, 18), materialArticulacion);
-    const tibia = mallaHueso(crearHuesoOrganico(0.024, 0.017, 0.015, 0.40));
-    const pie = mallaHueso(new THREE.BoxGeometry(0.065, 0.036, 0.19));
+    const cadera = malla(new THREE.SphereGeometry(0.030, 20, 18), materialArticulacion);
+    const femur = malla(crearDiafisis(0.028, 0.022, 0.41));
+    const rodilla = malla(new THREE.SphereGeometry(0.024, 20, 18), materialArticulacion);
+    const tibia = malla(crearDiafisis(0.023, 0.017, 0.40));
+    const tobillo = malla(new THREE.SphereGeometry(0.018, 16, 14), materialArticulacion);
+    const pie = malla(new THREE.BoxGeometry(0.058, 0.032, 0.185));
 
-    g.add(cadera, femur, rodilla, tibia, pie);
-    return { g, cadera, femur, rodilla, tibia, pie };
+    g.add(cadera, femur, rodilla, tibia, tobillo, pie);
+    return { g, cadera, femur, rodilla, tibia, tobillo, pie };
   }
 
-  const piernaIzqOsea = crearPiernaOsea();
-  const piernaDerOsea = crearPiernaOsea();
+  const piernaIzq = crearPierna();
+  const piernaDer = crearPierna();
 
-  group.add(
+  rigProcedural.add(
     craneoGrupo,
     columnaLumbar,
     columnaDorsal,
     toraxGrupo,
     pelvisGrupo,
-    brazoIzqOseo.g,
-    brazoDerOseo.g,
-    piernaIzqOsea.g,
-    piernaDerOsea.g
+    brazoIzq.g,
+    brazoDer.g,
+    piernaIzq.g,
+    piernaDer.g
   );
 
+  // Puntos de anclaje estables para Capa 2 (Músculo), Capa 3 (Grasa), Capa 4 (Piel) y futuras capas
   const anclajes = {
     pelvis: new THREE.Vector3(),
     torax: new THREE.Vector3(),
+    cuello: new THREE.Vector3(),
     craneo: new THREE.Vector3(),
     hombroIzq: new THREE.Vector3(),
     codoIzq: new THREE.Vector3(),
+    munecaIzq: new THREE.Vector3(),
     hombroDer: new THREE.Vector3(),
     codoDer: new THREE.Vector3(),
+    munecaDer: new THREE.Vector3(),
     caderaIzq: new THREE.Vector3(),
     rodillaIzq: new THREE.Vector3(),
+    tobilloIzq: new THREE.Vector3(),
     caderaDer: new THREE.Vector3(),
-    rodillaDer: new THREE.Vector3()
+    rodillaDer: new THREE.Vector3(),
+    tobilloDer: new THREE.Vector3()
   };
 
+  let ultimoParams = {};
+
   function actualizar(params = {}) {
-    const estaturaCm = params.estaturaCm ?? 175;
-    const anchoHombros = params.anchoHombros ?? 1.0;
-    const anchoCadera = params.anchoCadera ?? 1.0;
-    const escoliosisDeg = params.escoliosisDeg ?? params.desviacionColumnaDeg ?? 0;
-    const cifosisDeg = params.cifosisDeg ?? 0;
-    const hombrosAdelantadosDeg = params.hombrosAdelantadosDeg ?? 0;
+    ultimoParams = { ...ultimoParams, ...params };
+
+    const estaturaCm = ultimoParams.estaturaCm ?? 175;
+    const anchoHombros = ultimoParams.anchoHombros ?? 1.0;
+    const anchoCadera = ultimoParams.anchoCadera ?? 1.0;
+    const escoliosisDeg = ultimoParams.escoliosisDeg ?? ultimoParams.desviacionColumnaDeg ?? 0;
+    const cifosisDeg = ultimoParams.cifosisDeg ?? 0;
+    const hombrosAdelantadosDeg = ultimoParams.hombrosAdelantadosDeg ?? 0;
 
     const escalaAltura = estaturaCm / 175;
     const escolRad = THREE.MathUtils.degToRad(escoliosisDeg);
@@ -173,8 +232,9 @@ export function crearCapaEsqueleto() {
 
     const sepPierna = 0.102 * anchoCadera;
 
-    function posicionarPierna(p, signo) {
+    function posicionarPierna(p, signo, esIzq) {
       const x = signo * sepPierna;
+
       p.cadera.scale.setScalar(escalaAltura);
       p.cadera.position.set(x, yCadera, 0);
 
@@ -188,16 +248,25 @@ export function crearCapaEsqueleto() {
       p.tibia.scale.set(1, escalaAltura, 1);
       p.tibia.position.set(x, altoTobillo + largoTibia * 0.5, 0.008);
 
+      p.tobillo.scale.setScalar(escalaAltura);
+      p.tobillo.position.set(x, altoTobillo, 0.004);
+
       p.pie.scale.set(1, escalaAltura, escalaAltura);
-      p.pie.position.set(x, 0.018 * escalaAltura, 0.045 * escalaAltura);
+      p.pie.position.set(x, 0.016 * escalaAltura, 0.045 * escalaAltura);
+
+      if (esIzq) {
+        anclajes.caderaIzq.copy(p.cadera.position);
+        anclajes.rodillaIzq.copy(p.rodilla.position);
+        anclajes.tobilloIzq.copy(p.tobillo.position);
+      } else {
+        anclajes.caderaDer.copy(p.cadera.position);
+        anclajes.rodillaDer.copy(p.rodilla.position);
+        anclajes.tobilloDer.copy(p.tobillo.position);
+      }
     }
 
-    posicionarPierna(piernaIzqOsea, -1);
-    posicionarPierna(piernaDerOsea, 1);
-    anclajes.caderaIzq.copy(piernaIzqOsea.cadera.position);
-    anclajes.rodillaIzq.copy(piernaIzqOsea.rodilla.position);
-    anclajes.caderaDer.copy(piernaDerOsea.cadera.position);
-    anclajes.rodillaDer.copy(piernaDerOsea.rodilla.position);
+    posicionarPierna(piernaIzq, -1, true);
+    posicionarPierna(piernaDer, 1, false);
 
     const largoLumbar = 0.24 * escalaAltura;
     const largoDorsal = 0.28 * escalaAltura;
@@ -234,6 +303,8 @@ export function crearCapaEsqueleto() {
     const yCabeza = yCadera + 0.69 * escalaAltura;
     const dzCabeza = dzTorax + Math.sin(cifoRad) * (0.20 * escalaAltura) + 0.015;
 
+    anclajes.cuello.set(dxCabeza, yCadera + 0.56 * escalaAltura, dzCabeza - 0.005);
+
     craneoGrupo.scale.setScalar(escalaAltura);
     craneoGrupo.position.set(dxCabeza, yCabeza, dzCabeza);
     craneoGrupo.rotation.z = -escolRad;
@@ -246,10 +317,15 @@ export function crearCapaEsqueleto() {
     const segAnt = 0.25 * escalaAltura;
     const angAbertura = 0.18;
 
-    function posicionarBrazo(b, signo) {
+    function posicionarBrazo(b, signo, esIzq) {
       const xHombro = dxTorax + signo * 0.195 * anchoHombros;
+
       b.clavicula.scale.set(anchoHombros, escalaAltura, escalaAltura);
-      b.clavicula.position.set(dxTorax + signo * 0.095 * anchoHombros, yHombro + 0.012 * escalaAltura, dzHombro + 0.035);
+      b.clavicula.position.set(
+        dxTorax + signo * 0.095 * anchoHombros,
+        yHombro + 0.012 * escalaAltura,
+        dzHombro + 0.035
+      );
 
       b.hombro.scale.setScalar(escalaAltura);
       b.hombro.position.set(xHombro, yHombro, dzHombro);
@@ -280,24 +356,77 @@ export function crearCapaEsqueleto() {
         zCodo + Math.sin(protraccionRad * 0.4) * (segAnt * 0.4)
       );
 
+      const xMuneca = xCodo + signo * Math.sin(angAnt) * segAnt;
+      const yMuneca = yCodo - Math.cos(angAnt) * segAnt;
+      const zMuneca = zCodo + Math.sin(protraccionRad * 0.4) * (segAnt * 0.72);
+
+      b.muneca.scale.setScalar(escalaAltura);
+      b.muneca.position.set(xMuneca, yMuneca, zMuneca);
+
       b.mano.scale.setScalar(escalaAltura);
       b.mano.rotation.z = -signo * angAnt;
       b.mano.rotation.x = protraccionRad * 0.4;
       b.mano.position.set(
-        xCodo + signo * Math.sin(angAnt) * (segAnt + 0.04 * escalaAltura),
-        yCodo - Math.cos(angAnt) * (segAnt + 0.04 * escalaAltura),
-        zCodo + Math.sin(protraccionRad * 0.4) * (segAnt * 0.75)
+        xMuneca + signo * Math.sin(angAnt) * (0.04 * escalaAltura),
+        yMuneca - Math.cos(angAnt) * (0.04 * escalaAltura),
+        zMuneca + Math.sin(protraccionRad * 0.4) * (0.025 * escalaAltura)
       );
+
+      if (esIzq) {
+        anclajes.hombroIzq.copy(b.hombro.position);
+        anclajes.codoIzq.copy(b.codo.position);
+        anclajes.munecaIzq.copy(b.muneca.position);
+      } else {
+        anclajes.hombroDer.copy(b.hombro.position);
+        anclajes.codoDer.copy(b.codo.position);
+        anclajes.munecaDer.copy(b.muneca.position);
+      }
     }
 
-    posicionarBrazo(brazoIzqOseo, -1);
-    posicionarBrazo(brazoDerOseo, 1);
-    anclajes.hombroIzq.copy(brazoIzqOseo.hombro.position);
-    anclajes.codoIzq.copy(brazoIzqOseo.codo.position);
-    anclajes.hombroDer.copy(brazoDerOseo.hombro.position);
-    anclajes.codoDer.copy(brazoDerOseo.codo.position);
+    posicionarBrazo(brazoIzq, -1, true);
+    posicionarBrazo(brazoDer, 1, false);
+
+    if (contenedorGlb.visible) {
+      contenedorGlb.scale.setScalar(escalaAltura);
+      contenedorGlb.rotation.set(cifoRad, 0, -escolRad);
+    }
+  }
+
+  // Permite cargar un modelo GLB anatómico real cuando esté disponible
+  function cargarModeloGLB(url) {
+    if (!url) return Promise.resolve(false);
+    const loader = new GLTFLoader();
+    return new Promise((resolve, reject) => {
+      loader.load(
+        url,
+        (gltf) => {
+          contenedorGlb.clear();
+          gltf.scene.traverse((obj) => {
+            if (obj.isMesh) {
+              obj.castShadow = true;
+              obj.receiveShadow = true;
+              obj.material = materialHueso;
+            }
+          });
+          contenedorGlb.add(gltf.scene);
+          rigProcedural.visible = false;
+          contenedorGlb.visible = true;
+          actualizar(ultimoParams);
+          resolve(true);
+        },
+        undefined,
+        (err) => reject(err)
+      );
+    });
+  }
+
+  if (opciones.urlModeloGlb) {
+    cargarModeloGLB(opciones.urlModeloGlb).catch(() => {
+      rigProcedural.visible = true;
+      contenedorGlb.visible = false;
+    });
   }
 
   actualizar();
-  return { group, anclajes, actualizar };
+  return { group, anclajes, actualizar, cargarModeloGLB };
 }
