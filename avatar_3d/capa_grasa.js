@@ -1,9 +1,46 @@
 // ============================================================================
-// VISAGELAB - CAPA 3: GRASA HUMANA ORGÁNICA
+// VISAGELAB - CAPA 3: TEJIDO ADIPOSO (INFORME GENERAL: KG, CM, ZONAS Y PLICOMETRÍA)
+// ============================================================================
+
+// ============================================================================
+// [BLOQUE 1] IMPORTACIONES, TEXTURA PBR CELULAR Y GEOMETRÍA ADIPOSA
+// Función: Importa Three.js y GLTFLoader, sintetiza en un canvas 2D la textura
+// lobulillar del tejido adiposo subcutáneo y define el generador geométrico
+// de panículos adiposos mediante curvas Spline y torno (LatheGeometry).
 // ============================================================================
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.158.0/build/three.module.js";
+import { GLTFLoader } from "https://cdn.jsdelivr.net/npm/three@0.158.0/examples/jsm/loaders/GLTFLoader.js";
 
-function crearContornoAdiposo(radiosYAlturas, segRadial = 26, segCurva = 22) {
+function crearTexturaTejidoAdiposo() {
+  const canvas = document.createElement("canvas");
+  canvas.width = 256;
+  canvas.height = 256;
+  const ctx = canvas.getContext("2d");
+
+  ctx.fillStyle = "#e6be5a";
+  ctx.fillRect(0, 0, 256, 256);
+
+  for (let i = 0; i < 1600; i++) {
+    const x = Math.random() * 256;
+    const y = Math.random() * 256;
+    const r = 1.2 + Math.random() * 2.8;
+    ctx.fillStyle = Math.random() > 0.45
+      ? "rgba(255, 236, 168, 0.25)"
+      : "rgba(184, 134, 38, 0.20)";
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.wrapS = THREE.RepeatWrapping;
+  tex.wrapT = THREE.RepeatWrapping;
+  tex.repeat.set(3, 3);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
+
+function crearContornoAdiposo(radiosYAlturas, segRadial = 28, segCurva = 22) {
   const puntos = radiosYAlturas.map(([r, y]) => new THREE.Vector2(r, y));
   const curva = new THREE.SplineCurve(puntos);
   const geo = new THREE.LatheGeometry(curva.getPoints(segCurva), segRadial);
@@ -11,217 +48,533 @@ function crearContornoAdiposo(radiosYAlturas, segRadial = 26, segCurva = 22) {
   return geo;
 }
 
-export function crearCapaGrasa() {
+// ============================================================================
+// [BLOQUE 2] CONVERSIÓN ANTROPOMÉTRICA (%, KG, CM, ZONAS Y PLICÓMETRO EN MM)
+// Función: Define los límites clínicos seguros (clamping) y transforma los
+// porcentajes, kilogramos segmentarios, perímetros en cm (cuello, cintura,
+// cadera), controles zonales y pliegues cutáneos en mm (plicómetro) en factores
+// volumétricos coherentes para el modelo y para la Capa 4 (Piel).
+// ============================================================================
+const CLAMP_GRASA = {
+  grasaTotalPct: [4, 50],
+  grasaTotalKg: [3, 60],
+  segTroncoKg: [1.2, 32],
+  segSupKg: [0.2, 6.5],
+  segInfKg: [0.8, 15.0],
+  cuelloCm: [28, 56],
+  cinturaCm: [52, 145],
+  caderaCm: [70, 155],
+  nivelZona: [0, 10],
+  movilidadZona: [-5, 5],
+  pliegueMm: [2, 55]
+};
+
+function acotar(val, min, max) {
+  return THREE.MathUtils.clamp(Number.isFinite(val) ? val : min, min, max);
+}
+
+function factorDesdePorcentaje(pctRaw = 18) {
+  const pct = acotar(pctRaw, ...CLAMP_GRASA.grasaTotalPct);
+  return 0.62 + (pct / 18) * 0.38;
+}
+
+function factorDesdeKg(kgRaw, kgRef, minKg, maxKg) {
+  const kg = acotar(kgRaw ?? kgRef, minKg, maxKg);
+  return 0.62 + Math.cbrt(kg / kgRef) * 0.38;
+}
+
+function factorDesdeZona10(nivelRaw = 4) {
+  const n = acotar(nivelRaw, ...CLAMP_GRASA.nivelZona);
+  if (n <= 4) return THREE.MathUtils.lerp(0.46, 1.00, n / 4);
+  return THREE.MathUtils.lerp(1.00, 1.65, (n - 4) / 6);
+}
+
+function factorDesdePliegueMm(mmRaw, mmRef = 12) {
+  const mm = acotar(mmRaw ?? mmRef, ...CLAMP_GRASA.pliegueMm);
+  return 0.60 + Math.sqrt(mm / mmRef) * 0.40;
+}
+
+// ============================================================================
+// [BLOQUE 3] MALLAS ADIPOSAS DE CUERPO COMPLETO Y POSE NEUTRA (restPose)
+// Función: Exporta crearCapaGrasa y construye las mallas de tejido adiposo para
+// Cara (mejillas/surcos), Cuello, Pecho, Costados (flancos), Espalda (alta,
+// media y baja), Tronco, Cadera/Glúteos y los 4 miembros (Sup Der/Izq e Inf
+// Der/Izq), guardando su restPose inmutable.
+// ============================================================================
+export function crearCapaGrasa(opciones = {}) {
   const group = new THREE.Group();
   group.name = "CapaGrasa";
 
-  const materialGrasa = new THREE.MeshStandardMaterial({
+  const texGrasa = crearTexturaTejidoAdiposo();
+
+  const materialGrasa = new THREE.MeshPhysicalMaterial({
     color: new THREE.Color("#e8c366"),
-    roughness: 0.60,
-    metalness: 0.02,
+    map: texGrasa,
+    bumpMap: texGrasa,
+    bumpScale: 0.0035,
+    roughness: 0.54,
+    metalness: 0.01,
+    clearcoat: 0.12,
+    clearcoatRoughness: 0.60,
     transparent: true,
-    opacity: 0.86
+    opacity: 0.84
   });
 
-  function mallaGrasa(geo) {
+  const rigProcedural = new THREE.Group();
+  rigProcedural.name = "GrasaProcedural";
+  group.add(rigProcedural);
+
+  const contenedorGlb = new THREE.Group();
+  contenedorGlb.name = "GrasaGLB";
+  contenedorGlb.visible = false;
+  group.add(contenedorGlb);
+
+  const mallas = {};
+  const restPose = {};
+
+  function registrarMalla(nombre, geo, padre, pos = [0, 0, 0], rot = [0, 0, 0], esc = [1, 1, 1]) {
     const m = new THREE.Mesh(geo, materialGrasa);
+    m.name = nombre;
     m.castShadow = true;
     m.receiveShadow = true;
+    m.position.set(...pos);
+    m.rotation.set(...rot);
+    m.scale.set(...esc);
+    padre.add(m);
+    mallas[nombre] = m;
+    restPose[nombre] = {
+      position: m.position.clone(),
+      rotation: m.rotation.clone(),
+      scale: m.scale.clone()
+    };
     return m;
   }
 
-  const troncoGrasa = mallaGrasa(
+  const nCraneo = new THREE.Group();
+  nCraneo.position.set(0, 1.54, 0.015);
+
+  const nCuello = new THREE.Group();
+  nCuello.position.set(0, 1.39, 0.005);
+
+  const nTorax = new THREE.Group();
+  nTorax.position.set(0, 1.19, 0.01);
+
+  const nCore = new THREE.Group();
+  nCore.position.set(0, 1.01, -0.005);
+
+  const nPelvis = new THREE.Group();
+  nPelvis.position.set(0, 0.86, 0);
+
+  rigProcedural.add(nCraneo, nCuello, nTorax, nCore, nPelvis);
+
+  // 1. Zona Cara (Mejillas / Cachetes y mandíbula)
+  const geoMejilla = new THREE.SphereGeometry(0.030, 20, 16);
+  registrarMalla("caraMejillaIzq", geoMejilla, nCraneo, [-0.044, -0.022, 0.056], [0.12, -0.25, 0], [0.85, 1.05, 0.78]);
+  registrarMalla("caraMejillaDer", geoMejilla, nCraneo, [0.044, -0.022, 0.056], [0.12, 0.25, 0], [0.85, 1.05, 0.78]);
+  registrarMalla("caraMandibula", new THREE.SphereGeometry(0.054, 22, 16), nCraneo, [0, -0.048, 0.032], [0.08, 0, 0], [0.88, 0.56, 0.94]);
+
+  // 2. Zona Cuello (Papada submentoniana y contorno cervical)
+  registrarMalla("cuelloPapada", new THREE.SphereGeometry(0.036, 18, 14), nCuello, [0, 0.048, 0.042], [0.35, 0, 0], [0.95, 0.52, 0.92]);
+  registrarMalla(
+    "cuelloContorno",
     crearContornoAdiposo([
-      [0.001, -0.26],
-      [0.145, -0.22],
-      [0.168, -0.10],
-      [0.152, 0.02],
-      [0.188, 0.14],
-      [0.212, 0.24],
-      [0.001, 0.27]
-    ])
+      [0.001, -0.06],
+      [0.058, -0.045],
+      [0.052, 0.0],
+      [0.049, 0.045],
+      [0.001, 0.06]
+    ], 24, 14),
+    nCuello,
+    [0, 0.005, 0.002],
+    [0, 0, 0],
+    [0.96, 1.0, 0.98]
   );
-  troncoGrasa.scale.set(1.08, 1.0, 0.86);
 
-  const gluteoIzq = mallaGrasa(new THREE.SphereGeometry(0.085, 22, 18));
-  gluteoIzq.scale.set(1.0, 0.92, 1.12);
+  // 3. Zonas Pecho, Costados y Tronco Abdominal
+  [-1, 1].forEach((s) => {
+    const lado = s < 0 ? "Izq" : "Der";
+    registrarMalla(`pechoGrasa${lado}`, new THREE.SphereGeometry(0.064, 22, 18), nTorax, [s * 0.062, 0.038, 0.106], [0.08, s * 0.18, 0], [1.24, 0.72, 0.58]);
+    registrarMalla(`costadoGrasa${lado}`, new THREE.SphereGeometry(0.058, 20, 16), nCore, [s * 0.098, -0.018, 0.018], [0, 0, s * 0.12], [0.78, 1.25, 1.08]);
+  });
 
-  const gluteoDer = mallaGrasa(new THREE.SphereGeometry(0.085, 22, 18));
-  gluteoDer.scale.set(1.0, 0.92, 1.12);
+  registrarMalla(
+    "troncoAbdomenGrasa",
+    crearContornoAdiposo([
+      [0.001, -0.14],
+      [0.128, -0.11],
+      [0.144, -0.03],
+      [0.136, 0.05],
+      [0.122, 0.12],
+      [0.001, 0.14]
+    ]),
+    nCore,
+    [0, 0.005, 0.024],
+    [0, 0, 0],
+    [1.06, 1.0, 0.74]
+  );
 
-  function crearBrazoGrasa() {
-    const brazo = mallaGrasa(
-      crearContornoAdiposo([
-        [0.001, -0.14],
-        [0.044, -0.11],
-        [0.056, -0.02],
-        [0.062, 0.08],
-        [0.046, 0.13],
-        [0.001, 0.15]
-      ])
-    );
-    const antebrazo = mallaGrasa(
-      crearContornoAdiposo([
-        [0.001, -0.125],
-        [0.032, -0.11],
-        [0.046, -0.03],
-        [0.050, 0.08],
-        [0.038, 0.12],
-        [0.001, 0.13]
-      ])
-    );
-    group.add(brazo, antebrazo);
-    return { brazo, antebrazo };
+  // 4. Zona Espalda (Alta, Media y Baja) y Cadera / Glúteo
+  [-1, 1].forEach((s) => {
+    const lado = s < 0 ? "Izq" : "Der";
+    registrarMalla(`espaldaAlta${lado}`, new THREE.SphereGeometry(0.062, 20, 16), nTorax, [s * 0.068, 0.068, -0.082], [-0.10, -s * 0.18, 0], [1.22, 0.78, 0.48]);
+    registrarMalla(`espaldaMedia${lado}`, new THREE.SphereGeometry(0.060, 20, 16), nTorax, [s * 0.078, -0.015, -0.072], [0, -s * 0.22, 0], [1.18, 0.85, 0.52]);
+    registrarMalla(`espaldaBaja${lado}`, new THREE.SphereGeometry(0.058, 20, 16), nCore, [s * 0.062, -0.012, -0.062], [0.08, 0, 0], [1.16, 0.88, 0.58]);
+    registrarMalla(`caderaGluteoGrasa${lado}`, new THREE.SphereGeometry(0.086, 22, 18), nPelvis, [s * 0.076, -0.018, -0.066], [0.12, s * 0.12, 0], [1.04, 0.96, 1.14]);
+  });
+
+  // 5. Segmentos Superior Derecho e Izquierdo
+  function construirBrazoAdiposo(lado, signo) {
+    const nBrazoSup = new THREE.Group();
+    nBrazoSup.position.set(signo * 0.21, 1.18, 0.012);
+    const nAntebrazo = new THREE.Group();
+    nAntebrazo.position.set(signo * 0.24, 0.92, 0.020);
+    rigProcedural.add(nBrazoSup, nAntebrazo);
+
+    const geoBrazo = crearContornoAdiposo([
+      [0.001, -0.135],
+      [0.042, -0.105],
+      [0.054, -0.02],
+      [0.058, 0.06],
+      [0.046, 0.12],
+      [0.001, 0.135]
+    ]);
+    const geoAnt = crearContornoAdiposo([
+      [0.001, -0.12],
+      [0.028, -0.10],
+      [0.040, -0.02],
+      [0.044, 0.07],
+      [0.034, 0.11],
+      [0.001, 0.12]
+    ]);
+
+    registrarMalla(`brazoGrasa${lado}`, geoBrazo, nBrazoSup);
+    registrarMalla(`antebrazoGrasa${lado}`, geoAnt, nAntebrazo);
+    return { nBrazoSup, nAntebrazo };
+  }
+  const segSupIzq = construirBrazoAdiposo("Izq", -1);
+  const segSupDer = construirBrazoAdiposo("Der", 1);
+
+  // 6. Segmentos Inferior Derecho e Izquierdo
+  function construirPiernaAdiposa(lado, signo) {
+    const nMuslo = new THREE.Group();
+    nMuslo.position.set(signo * 0.098, 0.64, 0.008);
+    const nPiernaInf = new THREE.Group();
+    nPiernaInf.position.set(signo * 0.098, 0.24, 0.005);
+    rigProcedural.add(nMuslo, nPiernaInf);
+
+    const geoMuslo = crearContornoAdiposo([
+      [0.001, -0.20],
+      [0.058, -0.17],
+      [0.078, -0.05],
+      [0.092, 0.08],
+      [0.096, 0.17],
+      [0.001, 0.20]
+    ]);
+    const geoPant = crearContornoAdiposo([
+      [0.001, -0.19],
+      [0.034, -0.16],
+      [0.058, -0.04],
+      [0.054, 0.08],
+      [0.048, 0.16],
+      [0.001, 0.19]
+    ]);
+
+    registrarMalla(`musloGrasa${lado}`, geoMuslo, nMuslo, [0, 0, 0], [0, 0, 0], [1.02, 1.0, 1.06]);
+    registrarMalla(`pantorrillaGrasa${lado}`, geoPant, nPiernaInf, [0, 0, -0.006], [0, 0, 0], [0.96, 1.0, 1.08]);
+    return { nMuslo, nPiernaInf };
+  }
+  const segInfIzq = construirPiernaAdiposa("Izq", -1);
+  const segInfDer = construirPiernaAdiposa("Der", 1);
+
+  // ==========================================================================
+  // [BLOQUE 4] MOTOR UNIFICADO applyAnatomyState Y PUENTE VOLUMÉTRICO A CAPA 4
+  // Función: Resetea a restPose, integra los parámetros globales (% y kg), los
+  // 5 segmentos en kg, los perímetros en cm (cuello, cintura, cadera), las zonas
+  // con movilidad (Cara, Cuello, Pecho, Espalda, Costados) y la Plicometría (mm).
+  // ==========================================================================
+  const ejeY = new THREE.Vector3(0, 1, 0);
+  const vDir = new THREE.Vector3();
+  let ultimoParams = {};
+  let skinnedMeshGlb = null;
+
+  const estadoVolumetrico = {
+    fGlobal: 1.0,
+    fCara: 1.0,
+    fCuello: 1.0,
+    fPecho: 1.0,
+    fCintura: 1.0,
+    fCostados: 1.0,
+    fCadera: 1.0,
+    fEspalda: 1.0,
+    fSupDer: 1.0,
+    fSupIzq: 1.0,
+    fInfDer: 1.0,
+    fInfIzq: 1.0,
+    desplazamientoY: 0
+  };
+
+  function resetToRestPose() {
+    Object.entries(mallas).forEach(([nombre, m]) => {
+      const base = restPose[nombre];
+      if (base) {
+        m.position.copy(base.position);
+        m.rotation.copy(base.rotation);
+        m.scale.copy(base.scale);
+      }
+    });
   }
 
-  const brazoIzqGrasa = crearBrazoGrasa();
-  const brazoDerGrasa = crearBrazoGrasa();
-
-  function crearPiernaGrasa() {
-    const muslo = mallaGrasa(
-      crearContornoAdiposo([
-        [0.001, -0.205],
-        [0.064, -0.18],
-        [0.082, -0.06],
-        [0.098, 0.08],
-        [0.104, 0.18],
-        [0.001, 0.21]
-      ])
-    );
-    muslo.scale.set(1.02, 1.0, 1.08);
-
-    const pantorrilla = mallaGrasa(
-      crearContornoAdiposo([
-        [0.001, -0.20],
-        [0.038, -0.17],
-        [0.066, -0.05],
-        [0.058, 0.08],
-        [0.056, 0.18],
-        [0.001, 0.205]
-      ])
-    );
-    pantorrilla.scale.set(0.96, 1.0, 1.12);
-
-    group.add(muslo, pantorrilla);
-    return { muslo, pantorrilla };
+  function alinearSegmentoEntreAnclajes(grupo, pSup, pInf) {
+    grupo.position.lerpVectors(pSup, pInf, 0.5);
+    vDir.subVectors(pSup, pInf);
+    const largo = vDir.length();
+    if (largo > 0.0001) {
+      vDir.normalize();
+      grupo.quaternion.setFromUnitVectors(ejeY, vDir);
+    }
+    return largo;
   }
 
-  const piernaIzqGrasa = crearPiernaGrasa();
-  const piernaDerGrasa = crearPiernaGrasa();
+  function applyAnatomyState(state = {}) {
+    ultimoParams = { ...ultimoParams, ...state };
+    resetToRestPose();
 
-  group.add(troncoGrasa, gluteoIzq, gluteoDer);
-
-  function actualizar(params = {}) {
-    const estaturaCm = params.estaturaCm ?? 175;
-    const anchoHombros = params.anchoHombros ?? 1.0;
-    const anchoCadera = params.anchoCadera ?? 1.0;
-    const escoliosisDeg = params.escoliosisDeg ?? params.desviacionColumnaDeg ?? 0;
-    const cifosisDeg = params.cifosisDeg ?? 0;
-    const hombrosAdelantadosDeg = params.hombrosAdelantadosDeg ?? 0;
-
-    const escolRad = THREE.MathUtils.degToRad(escoliosisDeg);
-    const cifoRad = THREE.MathUtils.degToRad(cifosisDeg);
-    const protraccionRad = THREE.MathUtils.degToRad(hombrosAdelantadosDeg);
-
+    const estaturaCm = acotar(ultimoParams.estaturaCm ?? 175, 140, 210);
     const escalaAltura = estaturaCm / 175;
-    const altoTobillo = 0.04 * escalaAltura;
-    const largoPiernaM = ((params.largoPiernaCm ?? 84) / 84) * 0.81 * escalaAltura;
-    const segPierna = largoPiernaM * 0.5;
-    const yCadera = params.anclajes?.pelvis?.y ?? (altoTobillo + largoPiernaM);
+    const morfoTorax = acotar(ultimoParams.morfologiaTorax ?? 1.0, 0.78, 1.28);
 
-    const grasaTotalPct = params.grasaTotalPct ?? 18;
-    const grasaSuperiorPct = params.grasaSuperiorPct ?? 15;
-    const grasaTroncoPct = params.grasaTroncoPct ?? 20;
-    const grasaInferiorPct = params.grasaInferiorPct ?? 18;
+    const fPctGlobal = factorDesdePorcentaje(ultimoParams.grasaTotalPct ?? 18);
+    const fKgGlobal = factorDesdeKg(ultimoParams.grasaTotalKg ?? 13.5, 13.5, ...CLAMP_GRASA.grasaTotalKg);
+    const fGlobal = ultimoParams.grasaGlobalUnidad === "kg"
+      ? fKgGlobal
+      : (ultimoParams.grasaGlobalUnidad === "ambos" ? (fPctGlobal + fKgGlobal) * 0.5 : fPctGlobal);
 
-    const fTotal = 0.76 + (grasaTotalPct / 100) * 0.95;
-    const fSup = (0.78 + (grasaSuperiorPct / 100) * 1.0) * (0.88 + fTotal * 0.12);
-    const fTronco = (0.78 + (grasaTroncoPct / 100) * 1.1) * (0.88 + fTotal * 0.12);
-    const fInf = (0.78 + (grasaInferiorPct / 100) * 1.05) * (0.88 + fTotal * 0.12);
+    materialGrasa.opacity = THREE.MathUtils.clamp(0.56 + (fGlobal - 0.62) * 0.45, 0.50, 0.90);
 
-    const cinturaCm = params.cinturaCm ?? 80;
-    const pechoCm = params.pechoCm ?? 100;
-    const bicepsCm = params.bicepsCm ?? 35;
-    const largoBrazoM = ((params.largoBrazoCm ?? 60) / 60) * 0.53 * escalaAltura;
-    const musloCm = params.musloCm ?? 56;
+    const fSegTronco = factorDesdeKg(ultimoParams.grasaTroncoKg ?? 7.0, 7.0, ...CLAMP_GRASA.segTroncoKg) * (0.35 + 0.65 * fGlobal);
+    const fSegSupDer = factorDesdeKg(ultimoParams.grasaSupDerKg ?? 0.9, 0.9, ...CLAMP_GRASA.segSupKg) * (0.35 + 0.65 * fGlobal);
+    const fSegSupIzq = factorDesdeKg(ultimoParams.grasaSupIzqKg ?? 0.9, 0.9, ...CLAMP_GRASA.segSupKg) * (0.35 + 0.65 * fGlobal);
+    const fSegInfDer = factorDesdeKg(ultimoParams.grasaInfDerKg ?? 2.3, 2.3, ...CLAMP_GRASA.segInfKg) * (0.35 + 0.65 * fGlobal);
+    const fSegInfIzq = factorDesdeKg(ultimoParams.grasaInfIzqKg ?? 2.3, 2.3, ...CLAMP_GRASA.segInfKg) * (0.35 + 0.65 * fGlobal);
 
-    const fCintura = cinturaCm / 80;
-    const fPecho = pechoCm / 100;
-    const fBiceps = bicepsCm / 35;
-    const fMuslo = musloCm / 56;
+    const fCuelloCm = acotar(ultimoParams.cuelloCm ?? 38, ...CLAMP_GRASA.cuelloCm) / 38;
+    const fCinturaCm = acotar(ultimoParams.cinturaCm ?? 80, ...CLAMP_GRASA.cinturaCm) / 80;
+    const fCaderaCm = acotar(ultimoParams.caderaCm ?? 96, ...CLAMP_GRASA.caderaCm) / 96;
 
-    const dxTronco = Math.sin(escolRad * 0.65) * 0.16 * escalaAltura;
-    const yTronco = yCadera + 0.25 * escalaAltura;
-    const dzTronco = Math.sin(cifoRad * 0.65) * 0.11 * escalaAltura;
+    const plicActivo = Boolean(ultimoParams.plicometroActivo ?? false);
+    const fPlicPecho = plicActivo ? factorDesdePliegueMm(ultimoParams.plieguePectoralMm ?? 10, 10) : 1.0;
+    const fPlicTricipital = plicActivo ? factorDesdePliegueMm(ultimoParams.pliegueTricipitalMm ?? 12, 12) : 1.0;
+    const fPlicSubescapular = plicActivo ? factorDesdePliegueMm(ultimoParams.pliegueSubescapularMm ?? 14, 14) : 1.0;
+    const fPlicSuprailiaco = plicActivo ? factorDesdePliegueMm(ultimoParams.pliegueSuprailiacoMm ?? 15, 15) : 1.0;
+    const fPlicAbdominal = plicActivo ? factorDesdePliegueMm(ultimoParams.pliegueAbdominalMm ?? 18, 18) : 1.0;
+    const fPlicMuslo = plicActivo ? factorDesdePliegueMm(ultimoParams.pliegueMusloMm ?? 16, 16) : 1.0;
 
-    const anchoTronco = ((anchoHombros * fPecho + anchoCadera * fCintura) * 0.5) * fTronco;
-    troncoGrasa.scale.set(1.08 * anchoTronco, escalaAltura, 0.88 * anchoTronco);
-    troncoGrasa.position.set(dxTronco, yTronco, dzTronco);
-    troncoGrasa.rotation.set(cifoRad * 0.65, 0, -escolRad * 0.65);
+    const fCara = factorDesdeZona10(ultimoParams.grasaCaraNivel ?? 4) * (0.4 + 0.6 * fGlobal);
+    const fCuello = factorDesdeZona10(ultimoParams.grasaCuelloNivel ?? 4) * fCuelloCm * (0.4 + 0.6 * fGlobal);
+    const fPecho = factorDesdeZona10(ultimoParams.grasaPechoNivel ?? 4) * fSegTronco * fPlicPecho;
+    const fCostados = factorDesdeZona10(ultimoParams.grasaCostadosNivel ?? 4) * fSegTronco * fCinturaCm * fPlicSuprailiaco;
+    const fAbdomen = fSegTronco * fCinturaCm * fPlicAbdominal;
+    const fCadera = ((fSegInfDer + fSegInfIzq) * 0.5) * fCaderaCm;
 
-    const sepPierna = 0.102 * anchoCadera;
-    const sGlut = anchoCadera * fInf * (0.85 + fCintura * 0.15) * escalaAltura;
-    gluteoIzq.scale.set(sGlut, 0.92 * sGlut, 1.12 * sGlut);
-    gluteoIzq.position.set(-sepPierna * 0.9, yCadera - 0.02 * escalaAltura, -0.055 * sGlut);
-
-    gluteoDer.scale.set(sGlut, 0.92 * sGlut, 1.12 * sGlut);
-    gluteoDer.position.set(sepPierna * 0.9, yCadera - 0.02 * escalaAltura, -0.055 * sGlut);
-
-    const segBrazo = largoBrazoM * 0.53;
-    const segAnt = largoBrazoM * 0.47;
-    const angAbertura = 0.18;
-    const dxTorax = params.anclajes?.torax?.x ?? (Math.sin(escolRad) * 0.25 * escalaAltura);
-    const yTorax = params.anclajes?.torax?.y ?? (yCadera + 0.39 * escalaAltura);
-    const dzTorax = params.anclajes?.torax?.z ?? (Math.sin(cifoRad) * 0.18 * escalaAltura);
-
-    function posicionarBrazoGrasa(b, signo, anclaHombro) {
-      const xHombro = anclaHombro?.x ?? (dxTorax + signo * 0.195 * anchoHombros);
-      const yHombro = anclaHombro?.y ?? (yCadera + 0.49 * escalaAltura);
-      const zHombro = anclaHombro?.z ?? (dzTorax + Math.sin(protraccionRad) * 0.14 * escalaAltura);
-
-      const cx1 = xHombro + signo * Math.sin(angAbertura) * (segBrazo * 0.5);
-      const cy1 = yHombro - Math.cos(angAbertura) * (segBrazo * 0.5);
-      const cz1 = zHombro + Math.sin(protraccionRad * 0.65) * (segBrazo * 0.4);
-
-      const gBrazo = fSup * (0.82 + fBiceps * 0.18);
-      b.brazo.scale.set(gBrazo, segBrazo / 0.29, gBrazo);
-      b.brazo.position.set(cx1, cy1, cz1);
-      b.brazo.rotation.set(protraccionRad * 0.65, 0, -signo * angAbertura);
-
-      const xCodo = xHombro + signo * Math.sin(angAbertura) * segBrazo;
-      const yCodo = yHombro - Math.cos(angAbertura) * segBrazo;
-      const zCodo = zHombro + Math.sin(protraccionRad * 0.65) * (segBrazo * 0.8);
-      const angAnt = angAbertura + 0.06;
-
-      const cx2 = xCodo + signo * Math.sin(angAnt) * (segAnt * 0.5);
-      const cy2 = yCodo - Math.cos(angAnt) * (segAnt * 0.5);
-      const cz2 = zCodo + Math.sin(protraccionRad * 0.4) * (segAnt * 0.4);
-
-      const gAnt = gBrazo * 0.92;
-      b.antebrazo.scale.set(gAnt, segAnt / 0.255, gAnt);
-      b.antebrazo.position.set(cx2, cy2, cz2);
-      b.antebrazo.rotation.set(protraccionRad * 0.4, 0, -signo * angAnt);
+    let fEspAlta = 1, fEspMedia = 1, fEspBaja = 1;
+    if (ultimoParams.grasaEspaldaModo === "desglosado") {
+      fEspAlta = factorDesdeZona10(ultimoParams.grasaEspaldaAltaNivel ?? 4) * fSegTronco * fPlicSubescapular;
+      fEspMedia = factorDesdeZona10(ultimoParams.grasaEspaldaMediaNivel ?? 4) * fSegTronco * fPlicSubescapular;
+      fEspBaja = factorDesdeZona10(ultimoParams.grasaEspaldaBajaNivel ?? 4) * fSegTronco * fCinturaCm;
+    } else {
+      const fEspGen = factorDesdeZona10(ultimoParams.grasaEspaldaGeneralNivel ?? 4) * fSegTronco * fPlicSubescapular;
+      fEspAlta = fEspMedia = fEspBaja = fEspGen;
     }
 
-    posicionarBrazoGrasa(brazoIzqGrasa, -1, params.anclajes?.hombroIzq);
-    posicionarBrazoGrasa(brazoDerGrasa, 1, params.anclajes?.hombroDer);
+    const movSecciones = acotar(ultimoParams.grasaMovilidadVertical ?? 0, ...CLAMP_GRASA.movilidadZona) * 0.004;
 
-    const gMuslo = fInf * (0.82 + fMuslo * 0.18);
-    const gPant = gMuslo * 0.80;
+    const musculoGlobalKg = acotar(ultimoParams.musculoGlobalKg ?? 32, 15, 58);
+    const fBaseMuscular = Math.cbrt(musculoGlobalKg / 32);
+    const fMuscCuello = 0.85 + ((ultimoParams.cuelloNivel ?? 2) / 5) * 0.25;
 
-    function posicionarPiernaGrasa(p, signo, anclaCadera) {
-      const xPos = anclaCadera?.x ?? (signo * sepPierna);
-      p.muslo.scale.set(1.02 * gMuslo, segPierna / 0.415, 1.08 * gMuslo);
-      p.muslo.position.set(xPos, altoTobillo + segPierna * 1.5, 0.012);
+    const anc = ultimoParams.anclajes;
+    if (anc?.pelvis && anc?.torax) {
+      nPelvis.position.copy(anc.pelvis);
+      if (anc.pelvis.quat) nPelvis.quaternion.copy(anc.pelvis.quat);
+      nPelvis.scale.setScalar(escalaAltura);
 
-      p.pantorrilla.scale.set(0.96 * gPant, segPierna / 0.405, 1.12 * gPant);
-      p.pantorrilla.position.set(xPos, altoTobillo + segPierna * 0.5, -0.005);
+      nTorax.position.copy(anc.torax);
+      if (anc.torax.quat) nTorax.quaternion.copy(anc.torax.quat);
+      nTorax.scale.setScalar(escalaAltura);
+
+      nCore.position.lerpVectors(anc.pelvis, anc.torax, 0.45);
+      if (anc.pelvis.quat && anc.torax.quat) {
+        nCore.quaternion.slerpQuaternions(anc.pelvis.quat, anc.torax.quat, 0.5);
+      }
+      nCore.scale.setScalar(escalaAltura);
+
+      if (anc.cuello) {
+        nCuello.position.copy(anc.cuello);
+        if (anc.cuello.quat) nCuello.quaternion.copy(anc.cuello.quat);
+        nCuello.scale.setScalar(escalaAltura);
+      }
+
+      if (anc.craneo) {
+        nCraneo.position.copy(anc.craneo);
+        if (anc.craneo.quat) nCraneo.quaternion.copy(anc.craneo.quat);
+        nCraneo.scale.setScalar(escalaAltura);
+      }
+
+      const alinearBrazo = (seg, pHombro, pCodo, pMuneca) => {
+        const lB = alinearSegmentoEntreAnclajes(seg.nBrazoSup, pHombro, pCodo);
+        seg.nBrazoSup.scale.set(escalaAltura, lB / 0.28, escalaAltura);
+        const lA = alinearSegmentoEntreAnclajes(seg.nAntebrazo, pCodo, pMuneca);
+        seg.nAntebrazo.scale.set(escalaAltura, lA / 0.25, escalaAltura);
+      };
+      if (anc.hombroIzq && anc.codoIzq && anc.munecaIzq) {
+        alinearBrazo(segSupIzq, anc.hombroIzq, anc.codoIzq, anc.munecaIzq);
+      }
+      if (anc.hombroDer && anc.codoDer && anc.munecaDer) {
+        alinearBrazo(segSupDer, anc.hombroDer, anc.codoDer, anc.munecaDer);
+      }
+
+      const alinearPierna = (seg, pCadera, pRodilla, pTobillo) => {
+        const lM = alinearSegmentoEntreAnclajes(seg.nMuslo, pCadera, pRodilla);
+        seg.nMuslo.scale.set(escalaAltura, lM / 0.41, escalaAltura);
+        const lP = alinearSegmentoEntreAnclajes(seg.nPiernaInf, pRodilla, pTobillo);
+        seg.nPiernaInf.scale.set(escalaAltura, lP / 0.40, escalaAltura);
+      };
+      if (anc.caderaIzq && anc.rodillaIzq && anc.tobilloIzq) {
+        alinearPierna(segInfIzq, anc.caderaIzq, anc.rodillaIzq, anc.tobilloIzq);
+      }
+      if (anc.caderaDer && anc.rodillaDer && anc.tobilloDer) {
+        alinearPierna(segInfDer, anc.caderaDer, anc.rodillaDer, anc.tobilloDer);
+      }
     }
 
-    posicionarPiernaGrasa(piernaIzqGrasa, -1, params.anclajes?.caderaIzq);
-    posicionarPiernaGrasa(piernaDerGrasa, 1, params.anclajes?.caderaDer);
+    ["Izq", "Der"].forEach((lado) => {
+      const s = lado === "Izq" ? -1 : 1;
+      const mejilla = mallas[`caraMejilla${lado}`];
+      mejilla.scale.multiply(new THREE.Vector3(fCara, fCara, fCara));
+      mejilla.position.x += s * (fCara - 1.0) * 0.011;
+      mejilla.position.z += (fCara - 1.0) * 0.013;
+      mejilla.position.y += movSecciones * 0.35;
+    });
+    mallas.caraMandibula.scale.multiply(new THREE.Vector3(0.84 + fCara * 0.16, 0.78 + fCara * 0.22, 0.88 + fCara * 0.12));
+
+    const fCuelloTotal = fCuello * fMuscCuello;
+    mallas.cuelloPapada.scale.multiply(new THREE.Vector3(fCuelloTotal, fCuelloTotal * 1.15, fCuelloTotal * 1.22));
+    mallas.cuelloPapada.position.y += -((fCuelloTotal - 1.0) * 0.008) + movSecciones * 0.4;
+    mallas.cuelloPapada.position.z += (fCuelloTotal - 1.0) * 0.014;
+    mallas.cuelloContorno.scale.multiply(new THREE.Vector3(fCuelloTotal, 1.0, fCuelloTotal));
+
+    const fAbdomenFinal = fAbdomen * (0.85 + 0.15 * fBaseMuscular);
+    mallas.troncoAbdomenGrasa.scale.multiply(new THREE.Vector3(fAbdomenFinal * morfoTorax, 1.0, fAbdomenFinal * 1.14));
+    mallas.troncoAbdomenGrasa.position.z += (fAbdomenFinal - 1.0) * 0.028;
+    mallas.troncoAbdomenGrasa.position.y += movSecciones;
+
+    ["Izq", "Der"].forEach((lado) => {
+      const s = lado === "Izq" ? -1 : 1;
+
+      const fPechoFinal = fPecho * (0.85 + 0.15 * fBaseMuscular);
+      mallas[`pechoGrasa${lado}`].scale.multiply(new THREE.Vector3(fPechoFinal * morfoTorax, fPechoFinal, fPechoFinal));
+      mallas[`pechoGrasa${lado}`].position.z += (fPechoFinal - 1.0) * 0.022 + (morfoTorax - 1.0) * 0.03;
+      mallas[`pechoGrasa${lado}`].position.y += movSecciones * 1.15;
+
+      mallas[`costadoGrasa${lado}`].scale.multiply(new THREE.Vector3(fCostados, 1.0, fCostados));
+      mallas[`costadoGrasa${lado}`].position.x += s * (fCostados - 1.0) * 0.024;
+      mallas[`costadoGrasa${lado}`].position.y += movSecciones * 0.85;
+
+      mallas[`espaldaAlta${lado}`].scale.multiply(new THREE.Vector3(fEspAlta * morfoTorax, fEspAlta, fEspAlta));
+      mallas[`espaldaAlta${lado}`].position.z -= (fEspAlta - 1.0) * 0.018;
+
+      mallas[`espaldaMedia${lado}`].scale.multiply(new THREE.Vector3(fEspMedia * morfoTorax, fEspMedia, fEspMedia));
+      mallas[`espaldaMedia${lado}`].position.x += s * (fEspMedia - 1.0) * 0.016;
+      mallas[`espaldaMedia${lado}`].position.z -= (fEspMedia - 1.0) * 0.018;
+
+      mallas[`espaldaBaja${lado}`].scale.multiply(new THREE.Vector3(fEspBaja, fEspBaja, fEspBaja));
+      mallas[`espaldaBaja${lado}`].position.z -= (fEspBaja - 1.0) * 0.022;
+
+      mallas[`caderaGluteoGrasa${lado}`].scale.multiply(new THREE.Vector3(fCadera, fCadera, fCadera));
+      mallas[`caderaGluteoGrasa${lado}`].position.x += s * (fCadera - 1.0) * 0.018;
+      mallas[`caderaGluteoGrasa${lado}`].position.z -= (fCadera - 1.0) * 0.024;
+      mallas[`caderaGluteoGrasa${lado}`].position.y += movSecciones * 0.75;
+    });
+
+    const fSupIzqFinal = fSegSupIzq * fPlicTricipital * (0.82 + 0.18 * fBaseMuscular);
+    const fSupDerFinal = fSegSupDer * fPlicTricipital * (0.82 + 0.18 * fBaseMuscular);
+    mallas.brazoGrasaIzq.scale.multiply(new THREE.Vector3(fSupIzqFinal, 1.0, fSupIzqFinal));
+    mallas.antebrazoGrasaIzq.scale.multiply(new THREE.Vector3(fSupIzqFinal * 0.92, 1.0, fSupIzqFinal * 0.92));
+    mallas.brazoGrasaDer.scale.multiply(new THREE.Vector3(fSupDerFinal, 1.0, fSupDerFinal));
+    mallas.antebrazoGrasaDer.scale.multiply(new THREE.Vector3(fSupDerFinal * 0.92, 1.0, fSupDerFinal * 0.92));
+
+    const fInfIzqFinal = fSegInfIzq * fPlicMuslo * (0.82 + 0.18 * fBaseMuscular);
+    const fInfDerFinal = fSegInfDer * fPlicMuslo * (0.82 + 0.18 * fBaseMuscular);
+    mallas.musloGrasaIzq.scale.multiply(new THREE.Vector3(fInfIzqFinal, 1.0, fInfIzqFinal));
+    mallas.pantorrillaGrasaIzq.scale.multiply(new THREE.Vector3(fInfIzqFinal * 0.88, 1.0, fInfIzqFinal * 0.88));
+    mallas.musloGrasaDer.scale.multiply(new THREE.Vector3(fInfDerFinal, 1.0, fInfDerFinal));
+    mallas.pantorrillaGrasaDer.scale.multiply(new THREE.Vector3(fInfDerFinal * 0.88, 1.0, fInfDerFinal * 0.88));
+
+    estadoVolumetrico.fGlobal = fGlobal;
+    estadoVolumetrico.fCara = fCara;
+    estadoVolumetrico.fCuello = fCuelloTotal;
+    estadoVolumetrico.fPecho = fPecho;
+    estadoVolumetrico.fCintura = fAbdomenFinal;
+    estadoVolumetrico.fCostados = fCostados;
+    estadoVolumetrico.fCadera = fCadera;
+    estadoVolumetrico.fEspalda = (fEspAlta + fEspMedia + fEspBaja) / 3;
+    estadoVolumetrico.fSupDer = fSupDerFinal;
+    estadoVolumetrico.fSupIzq = fSupIzqFinal;
+    estadoVolumetrico.fInfDer = fInfDerFinal;
+    estadoVolumetrico.fInfIzq = fInfIzqFinal;
+    estadoVolumetrico.desplazamientoY = movSecciones;
   }
 
-  actualizar();
-  return { group, actualizar };
+  // ==========================================================================
+  // [BLOQUE 5] CARGADOR .GLB DE TEJIDO ADIPOSO Y EXPORTACIÓN PÚBLICA
+  // Función: Permite cargar una malla .glb de tejido adiposo exportada desde
+  // Blender y expone estadoVolumetrico, applyAnatomyState y actualizar.
+  // ==========================================================================
+  function cargarModeloGLB(url) {
+    if (!url) return Promise.resolve(false);
+    const loader = new GLTFLoader();
+    return new Promise((resolve, reject) => {
+      loader.load(
+        url,
+        (gltf) => {
+          contenedorGlb.clear();
+          skinnedMeshGlb = null;
+          gltf.scene.traverse((obj) => {
+            if (obj.isMesh) {
+              obj.castShadow = true;
+              obj.receiveShadow = true;
+              obj.material = materialGrasa;
+              if (obj.isSkinnedMesh && !skinnedMeshGlb) skinnedMeshGlb = obj;
+            }
+          });
+          contenedorGlb.add(gltf.scene);
+          rigProcedural.visible = false;
+          contenedorGlb.visible = true;
+          applyAnatomyState(ultimoParams);
+          resolve(true);
+        },
+        undefined,
+        (err) => reject(err)
+      );
+    });
+  }
+
+  if (opciones.urlModeloGlb) {
+    cargarModeloGLB(opciones.urlModeloGlb).catch(() => {
+      rigProcedural.visible = true;
+      contenedorGlb.visible = false;
+    });
+  }
+
+  applyAnatomyState();
+
+  return {
+    group,
+    mallas,
+    restPose,
+    estadoVolumetrico,
+    applyAnatomyState,
+    actualizar: applyAnatomyState,
+    cargarModeloGLB
+  };
 }

@@ -3,13 +3,12 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>VisageLab - Visor Avatar 3D (Ramas por Capa)</title>
+  <title>VisageLab - Visor Avatar 3D (Capas 1, 2, 3 y 4)</title>
 
   <!-- ============================================================================
   [BLOQUE 1] IMPORT MAP DE THREE.JS Y ESTILOS CSS DE RAMAS JERÁRQUICAS
   Función: Resuelve el especificador "three" requerido internamente por GLTFLoader
-  para evitar errores en localhost, y estiliza el árbol de Grandes Ramas y
-  Sub-ramas del panel lateral.
+  y estiliza el visor 3D con un único panel lateral derecho desplazable.
   ============================================================================ -->
   <script type="importmap">
     {
@@ -40,7 +39,7 @@
       padding: 10px 14px; border-radius: 8px; font-size: 12px; z-index: 20; white-space: pre-wrap;
     }
     #panel {
-      width: 410px; flex-shrink: 0; background: #101724; border-left: 1px solid #1e293b;
+      width: 420px; flex-shrink: 0; background: #101724; border-left: 1px solid #1e293b;
       padding: 12px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; z-index: 10;
     }
     .tarjeta { background: #172133; border: 1px solid #26354d; border-radius: 10px; padding: 11px; }
@@ -50,7 +49,7 @@
     .bloque-capa { display: flex; flex-direction: column; gap: 10px; }
     .titulo-capa {
       font-size: 12px; font-weight: 700; color: #38bdf8; text-transform: uppercase;
-      letter-spacing: 0.06em; padding: 4px 2px 0; border-top: 1px solid #1e293b;
+      letter-spacing: 0.06em; padding: 6px 2px 0; border-top: 1px solid #1e293b;
     }
     details.gran-rama {
       background: #151f30; border: 1px solid #26354d; border-radius: 9px; padding: 8px 10px;
@@ -92,28 +91,23 @@
   </style>
 </head>
 <body>
-  <!-- ============================================================================
-  [BLOQUE 2] SELECTOR DE VISIBILIDAD Y PANEL EXCLUSIVO DE CAPA 1 (ESQUELETO)
-  Función: Muestra los botones de las 4 capas y agrupa los 12 parámetros óseos
-  dentro de [data-panel-capa="esqueleto"] para que solo aparezcan en el panel
-  cuando la Capa 1 esté seleccionada.
-  ============================================================================ -->
   <div id="visor-3d">
     <div class="hud">
       <strong>VISAGELAB · SIMULADOR ANATÓMICO 3D</strong><br />
       Arrastra para rotar · Rueda para zoom<br />
-      <span id="estado-capas">Capas activas: Esqueleto + Músculo</span>
+      <span id="estado-capas">Capas activas: Esqueleto + Músculo + Grasa</span>
     </div>
     <div id="error-visor"></div>
   </div>
 
+  <!-- UN ÚNICO ASIDE #panel QUE CONTIENE LAS TARJETAS DE TODAS LAS CAPAS -->
   <aside id="panel">
     <div class="tarjeta">
       <h3>Visibilidad de Capas (Filtra el Panel)</h3>
       <div class="grid-capas">
         <button type="button" class="btn-capa activa" data-capa="esqueleto">1. Esqueleto</button>
         <button type="button" class="btn-capa activa" data-capa="musculo">2. Músculo</button>
-        <button type="button" class="btn-capa" data-capa="grasa">3. Grasa</button>
+        <button type="button" class="btn-capa activa" data-capa="grasa">3. Grasa</button>
         <button type="button" class="btn-capa" data-capa="piel">4. Piel</button>
       </div>
       <label class="fila-check">
@@ -122,9 +116,10 @@
       </label>
     </div>
 
-    <!-- ======================================================================
-         PANEL EXCLUSIVO DE CAPA 1: ESQUELETO (Se oculta si apagas 1. Esqueleto)
-         ====================================================================== -->
+    <!-- ============================================================================
+    [BLOQUE 2] PANEL EXCLUSIVO DE CAPA 1 (ESQUELETO)
+    Función: Controles de los 12 parámetros posturales y estructurales óseos.
+    ============================================================================ -->
     <div class="bloque-capa" data-panel-capa="esqueleto">
       <div class="titulo-capa">Controles de Capa 1 · Sistema Esquelético</div>
 
@@ -196,17 +191,14 @@
         </div>
       </details>
     </div>
+
     <!-- ============================================================================
     [BLOQUE 3] PANEL EXCLUSIVO DE CAPA 2 (MÚSCULO) POR GRANDES RAMAS Y SUB-RAMAS
-    Función: Muestra exclusivamente los controles musculares cuando la Capa 2 está
-    activa, organizados desde cada Gran Rama (ej. Deltoides) hacia sus Sub-ramas
-    (ej. Anterior, Lateral y Posterior por desarrollo 0-10, o Deltoide General por
-    desarrollo o centímetros).
+    Función: Controles musculares por Grandes Ramas y Sub-ramas (0-10, 0-5 y cm).
     ============================================================================ -->
     <div class="bloque-capa" data-panel-capa="musculo">
       <div class="titulo-capa">Controles de Capa 2 · Sistema Muscular</div>
 
-      <!-- RAMA GLOBAL -->
       <div class="tarjeta">
         <h3>Rama Global · Masa Muscular y Somatotipo</h3>
         <div class="control">
@@ -223,8 +215,7 @@
         </div>
       </div>
 
-      <!-- GRAN RAMA 1: DELTOIDES (HOMBROS) -->
-      <details class="gran-rama" open>
+      <details class="gran-rama">
         <summary>Gran Rama: Deltoides (Hombros)</summary>
         <div class="control">
           <label>Alcance de la Rama Deltoides</label>
@@ -233,11 +224,8 @@
             <option value="desglosado">Desglosado (Anterior, Lateral y Posterior)</option>
           </select>
         </div>
-
-        <!-- Opción A: Deltoide en General (Nivel 0-10 o Centímetros) -->
         <div class="sub-rama" id="delt-caja-general">
           <div class="sub-rama-titulo">Deltoide en General</div>
-          <label style="font-size:11px; color:#cbd5e1;">Medición:</label>
           <select id="deltoides-unidad">
             <option value="nivel" selected>Por Nivel de Desarrollo (0 a 10)</option>
             <option value="cm">Por Centímetros (Contorno hasta 200 cm)</option>
@@ -251,8 +239,6 @@
             <input type="range" id="hombros-cm" min="88" max="200" step="1" value="118" />
           </div>
         </div>
-
-        <!-- Opción B: Sub-ramas Deltoide Anterior, Lateral y Posterior (SOLO Nivel 0-10, sin cm) -->
         <div class="sub-rama oculto" id="delt-caja-desglosado">
           <div class="sub-rama-titulo">Sub-ramas por Cabeza (Solo Desarrollo 0 a 10)</div>
           <div class="control">
@@ -270,7 +256,6 @@
         </div>
       </details>
 
-      <!-- GRAN RAMA 2: BRAZOS (BÍCEPS, TRÍCEPS, ANTEBRAZO Y MUÑECA) -->
       <details class="gran-rama">
         <summary>Gran Rama: Brazos (Bíceps, Tríceps, Antebrazo, Muñeca)</summary>
         <div class="control">
@@ -280,7 +265,6 @@
             <option value="desglosado">Desglosado (Bíceps y Tríceps por separado)</option>
           </select>
         </div>
-
         <div class="sub-rama" id="brazo-caja-general">
           <div class="sub-rama-titulo">Brazo en General (Bíceps + Tríceps)</div>
           <select id="brazo-unidad">
@@ -296,7 +280,6 @@
             <input type="range" id="brazo-cm" min="22" max="75" step="0.5" value="35" />
           </div>
         </div>
-
         <div class="sub-rama oculto" id="brazo-caja-desglosado">
           <div class="sub-rama-titulo">Sub-ramas Bíceps y Tríceps (Desarrollo 0 a 10)</div>
           <div class="control">
@@ -308,7 +291,6 @@
             <input type="range" id="triceps-n" min="0" max="10" step="0.5" value="4" />
           </div>
         </div>
-
         <div class="sub-rama">
           <div class="sub-rama-titulo">↳ Sub-rama: Antebrazo</div>
           <select id="antebrazo-unidad">
@@ -324,7 +306,6 @@
             <input type="range" id="antebrazo-cm" min="18" max="48" step="0.5" value="28" />
           </div>
         </div>
-
         <div class="sub-rama">
           <div class="sub-rama-titulo">↳ Sub-rama: Muñeca (Prueba de rodear con dedos)</div>
           <select id="muneca-tipo">
@@ -335,7 +316,6 @@
         </div>
       </details>
 
-      <!-- GRAN RAMA 3: PECHO (PECTORALES) -->
       <details class="gran-rama">
         <summary>Gran Rama: Pecho (Pectoral Sup, Med, Inf)</summary>
         <div class="control">
@@ -345,7 +325,6 @@
             <option value="desglosado">Desglosado por Porciones (Superior, Medio, Inferior)</option>
           </select>
         </div>
-
         <div class="sub-rama" id="pecho-caja-general">
           <div class="sub-rama-titulo">Pecho en General</div>
           <select id="pecho-unidad">
@@ -361,7 +340,6 @@
             <input type="range" id="pecho-cm" min="75" max="160" step="1" value="100" />
           </div>
         </div>
-
         <div class="sub-rama oculto" id="pecho-caja-desglosado">
           <div class="sub-rama-titulo">Sub-ramas por Porción (Desarrollo 0 a 10)</div>
           <div class="control">
@@ -379,7 +357,6 @@
         </div>
       </details>
 
-      <!-- GRAN RAMA 4: ESPALDA MEDIA Y ALTA -->
       <details class="gran-rama">
         <summary>Gran Rama: Espalda Media y Alta</summary>
         <div class="sub-rama">
@@ -407,7 +384,6 @@
             </div>
           </div>
         </div>
-
         <div class="sub-rama">
           <div class="sub-rama-titulo">↳ Sub-rama: Romboides Mayor (0 a 10)</div>
           <div class="control">
@@ -415,7 +391,6 @@
             <input type="range" id="romboides-n" min="0" max="10" step="0.5" value="4" />
           </div>
         </div>
-
         <div class="sub-rama">
           <div class="sub-rama-titulo">↳ Sub-rama: Dorsal Ancho (0 a 10)</div>
           <div class="control">
@@ -425,7 +400,6 @@
         </div>
       </details>
 
-      <!-- GRAN RAMA 5: CUELLO Y ZONA MEDIA / CORE (ESCALA 0 A 5) -->
       <details class="gran-rama">
         <summary>Gran Rama: Cuello, Abdomen, Oblicuos y Lumbar (0-5)</summary>
         <div class="sub-rama">
@@ -448,7 +422,6 @@
         </div>
       </details>
 
-      <!-- GRAN RAMA 6: TREN INFERIOR -->
       <details class="gran-rama">
         <summary>Gran Rama: Glúteos, Muslos y Pantorrillas</summary>
         <div class="sub-rama">
@@ -458,14 +431,12 @@
             <input type="range" id="gluteos-n" min="0" max="10" step="0.5" value="4" />
           </div>
         </div>
-
         <div class="sub-rama">
           <div class="sub-rama-titulo">↳ Sub-rama: Muslos e Isquiotibiales</div>
           <select id="muslo-modo">
             <option value="general" selected>Muslo en General</option>
             <option value="desglosado">Desglosado (Cuádriceps e Isquiotibiales)</option>
           </select>
-
           <div id="muslo-caja-general">
             <select id="muslo-unidad">
               <option value="nivel" selected>Por Nivel de Desarrollo (0 a 10)</option>
@@ -480,7 +451,6 @@
               <input type="range" id="muslo-cm" min="38" max="88" step="0.5" value="56" />
             </div>
           </div>
-
           <div class="oculto" id="muslo-caja-desglosado">
             <div class="control">
               <label>↳ Cuádriceps (0-10) <span class="val" id="v-cuadriceps-n">4.0</span></label>
@@ -492,7 +462,6 @@
             </div>
           </div>
         </div>
-
         <div class="sub-rama">
           <div class="sub-rama-titulo">↳ Sub-rama: Pantorrillas / Gemelos (0 a 5)</div>
           <div class="control">
@@ -502,18 +471,15 @@
         </div>
       </details>
     </div>
-  </aside>
-  <!-- ============================================================================
-    [BLOQUE CAPA 3] PANEL EXCLUSIVO DE CAPA 3 (INFORME GENERAL DE GRASA)
-    Función: Presenta los controles globales (% y kg), las 5 grasas segmentarias
-    en kg, las medidas en centímetros (cuello, cintura, cadera), las zonas
-    específicas con movilidad (Cara, Cuello, Pecho, Espalda, Costados) y la
-    medición por Plicómetro (pliegues cutáneos en mm).
+
+    <!-- ============================================================================
+    [BLOQUE 4] PANEL EXCLUSIVO DE CAPA 3 (INFORME GENERAL DE GRASA)
+    Función: Controles de grasa dentro del mismo aside #panel (Global %/kg,
+    5 segmentos en kg, medidas en cm, zonas con movilidad y Plicómetro en mm).
     ============================================================================ -->
-    <div class="bloque-capa oculto" data-panel-capa="grasa">
+    <div class="bloque-capa" data-panel-capa="grasa">
       <div class="titulo-capa">Controles de Capa 3 · Tejido Adiposo (Grasa)</div>
 
-      <!-- 1. PARÁMETROS GLOBALES DE GRASA (% Y KG) -->
       <div class="tarjeta">
         <h3>1. Parámetros Globales de Grasa (% y kg)</h3>
         <div class="control">
@@ -534,7 +500,6 @@
         </div>
       </div>
 
-      <!-- 2. GRASAS SEGMENTARIAS EN KILOGRAMOS (KG) -->
       <details class="gran-rama" open>
         <summary>2. Grasas Segmentarias (en Kilogramos kg)</summary>
         <div class="sub-rama">
@@ -562,7 +527,6 @@
         </div>
       </details>
 
-      <!-- 3. CONTROLES POR ZONAS Y MEDIDAS EN CENTÍMETROS (CM) -->
       <details class="gran-rama" open>
         <summary>3. Medidas en Centímetros (cm) y Zonas</summary>
         <div class="sub-rama">
@@ -632,7 +596,6 @@
         </div>
       </details>
 
-      <!-- 4. MEDICIÓN POR PLICÓMETRO (PLIEGUES CUTÁNEOS EN MM) -->
       <details class="gran-rama">
         <summary>4. Medición por Plicómetro (Pliegues Cutáneos)</summary>
         <label class="fila-check" style="margin-bottom:8px;">
@@ -668,10 +631,12 @@
         </div>
       </details>
     </div>
+  </aside>
+
   <!-- ============================================================================
-  [BLOQUE 4] LECTURA DE CONTROLES (CAPAS 1, 2 Y 3 CON PLICÓMETRO Y PERÍMETROS)
-  Función: Recopila todos los valores del DOM, filtra exclusivamente el panel de
-  las capas activas y actualiza las etiquetas en tiempo real.
+  [BLOQUE 5] LECTURA DE CONTROLES Y FILTRADO EXCLUSIVO POR CAPA ACTIVA
+  Función: Recopila todos los valores del DOM, filtra el panel según los botones
+  de capas encendidos y actualiza las etiquetas numéricas.
   ============================================================================ -->
   <script>
     const visorEl = document.getElementById("visor-3d");
@@ -703,7 +668,6 @@
       const val = (id) => parseFloat(document.getElementById(id).value);
       const txt = (id) => document.getElementById(id).value;
       return {
-        // Capa 1: Esqueleto
         estaturaCm: val("estatura"),
         morfologiaTorax: val("morfo-torax"),
         cifosisDeg: val("cifosis"),
@@ -722,7 +686,6 @@
         basculacionPelvicaDeg: val("basculacion"),
         translucida: document.getElementById("piel-translucida").checked,
 
-        // Capa 2: Músculo
         musculoGlobalKg: val("musc-global"),
         morfologia: txt("morfologia"),
         deltoidesModo: txt("deltoides-modo"),
@@ -770,7 +733,6 @@
         isquiotibialesNivel: val("isquios-n"),
         pantorrillaNivel: val("pantorrilla-n"),
 
-        // Capa 3: Tejido Adiposo (Informe General Completo)
         grasaGlobalUnidad: txt("grasa-global-unidad"),
         grasaTotalPct: val("grasa-total-pct"),
         grasaTotalKg: val("grasa-total-kg"),
@@ -805,7 +767,6 @@
     function actualizarArbolYEtiquetas(p) {
       sincronizarPanelesPorCapa();
 
-      // Conmutadores de sub-ramas Capa 2
       document.getElementById("delt-caja-general").classList.toggle("oculto", p.deltoidesModo !== "general");
       document.getElementById("delt-caja-desglosado").classList.toggle("oculto", p.deltoidesModo !== "desglosado");
       document.getElementById("delt-gen-nivel-wrap").classList.toggle("oculto", p.deltoidesUnidad !== "nivel");
@@ -831,11 +792,9 @@
       document.getElementById("muslo-gen-nivel-wrap").classList.toggle("oculto", p.musloUnidad !== "nivel");
       document.getElementById("muslo-gen-cm-wrap").classList.toggle("oculto", p.musloUnidad !== "cm");
 
-      // Conmutadores de sub-ramas Capa 3
       document.getElementById("grasa-esp-general-wrap").classList.toggle("oculto", p.grasaEspaldaModo !== "general");
       document.getElementById("grasa-esp-desglosado-wrap").classList.toggle("oculto", p.grasaEspaldaModo !== "desglosado");
 
-      // Etiquetas Capa 3
       document.getElementById("v-grasa-total-pct").textContent = `${p.grasaTotalPct.toFixed(1)} %`;
       document.getElementById("v-grasa-total-kg").textContent = `${p.grasaTotalKg.toFixed(1)} kg`;
       document.getElementById("v-grasa-tronco-kg").textContent = `${p.grasaTroncoKg.toFixed(1)} kg`;
@@ -866,7 +825,6 @@
       document.getElementById("v-plic-abdominal").textContent = `${p.pliegueAbdominalMm.toFixed(0)} mm`;
       document.getElementById("v-plic-muslo").textContent = `${p.pliegueMusloMm.toFixed(0)} mm`;
 
-      // Etiquetas Capa 2 y Capa 1
       document.getElementById("v-musc-global").textContent = `${p.musculoGlobalKg.toFixed(1)} kg`;
       document.getElementById("v-hombros-cm").textContent = `${p.hombrosCm.toFixed(0)} cm`;
       document.getElementById("v-brazo-cm").textContent = `${p.brazoCm.toFixed(1)} cm`;
@@ -938,18 +896,18 @@
   </script>
 
   <!-- ============================================================================
-  [BLOQUE 5] MOTOR WEBGL THREE.JS Y CONEXIÓN VOLUMÉTRICA HACIA LA PIEL (?v=5)
-  Función: Ejecuta applyAnatomyState en cascada (Esqueleto -> Músculo -> Grasa ->
-  Piel) inyectando estadoVolumetrico de la Capa 3 en la Capa 4.
+  [BLOQUE 6] MOTOR WEBGL THREE.JS Y CONEXIÓN VOLUMÉTRICA (?v=6)
+  Función: Importa las 4 capas limpiando el caché con ?v=6 y ejecuta
+  applyAnatomyState en cascada (Esqueleto -> Músculo -> Grasa -> Piel).
   ============================================================================ -->
   <script type="module">
     import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.158.0/build/three.module.js";
-    import { crearCapaEsqueleto } from "./capa_esqueleto.js?v=5";
-    import { crearCapaMusculo } from "./capa_musculo.js?v=5";
-    import { crearCapaGrasa } from "./capa_grasa.js?v=5";
-    import { crearCapaPiel } from "./capa_piel.js?v=5";
+    import { crearCapaEsqueleto } from "./capa_esqueleto.js?v=6";
+    import { crearCapaMusculo } from "./capa_musculo.js?v=6";
+    import { crearCapaGrasa } from "./capa_grasa.js?v=6";
+    import { crearCapaPiel } from "./capa_piel.js?v=6";
 
-    const visorW = () => Math.max(300, visorEl.clientWidth || window.innerWidth - 410);
+    const visorW = () => Math.max(300, visorEl.clientWidth || window.innerWidth - 420);
     const visorH = () => Math.max(300, visorEl.clientHeight || window.innerHeight);
 
     const escena = new THREE.Scene();
@@ -1000,7 +958,6 @@
         (capaMusculo.applyAnatomyState || capaMusculo.actualizar)(contexto);
         (capaGrasa.applyAnatomyState || capaGrasa.actualizar)(contexto);
 
-        // Pasa las métricas adiposas calculadas a la Capa 4 (Piel)
         const contextoPiel = { ...contexto, estadoGrasa: capaGrasa.estadoVolumetrico };
         (capaPiel.applyAnatomyState || capaPiel.actualizar)(contextoPiel);
       } catch (err) {
