@@ -1,7 +1,41 @@
 import ast
 import os
 import re
+import sys
 from pathlib import Path
+
+CARPETAS_EXCLUIDAS = {
+    ".git",
+    "venv",
+    ".venv",
+    "__pycache__",
+    "node_modules",
+}
+
+EXTENSIONES_PESADAS = {
+    ".glb",
+    ".gltf",
+    ".fbx",
+    ".obj",
+    ".blend",
+    ".zip",
+    ".7z",
+    ".rar",
+    ".tar",
+    ".gz",
+    ".mp4",
+    ".mov",
+    ".avi",
+    ".mp3",
+    ".wav",
+    ".exe",
+    ".dll",
+    ".iso",
+    ".bin",
+    ".pkl",
+    ".h5",
+    ".onnx",
+}
 
 EXTENSIONES_TEXTO = {
     ".py",
@@ -34,6 +68,8 @@ EXTENSIONES_TEXTO = {
     ".bat",
 }
 
+MAX_BYTES_LEER = 256 * 1024  # 256 KB
+
 
 def formatear_tamano(bytes_len: int) -> str:
     if bytes_len < 1024:
@@ -43,16 +79,19 @@ def formatear_tamano(bytes_len: int) -> str:
     return f"{bytes_len / (1024 * 1024):.2f} MB"
 
 
-def resumir_archivo(ruta: Path) -> str:
+def resumir_archivo(ruta: Path, tam_bytes: int) -> str:
     ext = ruta.suffix.lower()
 
+    if ext in EXTENSIONES_PESADAS or tam_bytes > MAX_BYTES_LEER:
+        return f"Archivo pesado/recurso ({ext or 'sin extensión'}, {formatear_tamano(tam_bytes)}) — omitido contenido: {ruta.name}"
+
     if ext not in EXTENSIONES_TEXTO:
-        return f"Recurso/binario ({ext or 'sin extensión'}) — nombre: {ruta.name}"
+        return f"Recurso ({ext or 'sin extensión'}) — nombre: {ruta.name}"
 
     try:
         contenido = ruta.read_text(encoding="utf-8", errors="ignore")
     except Exception:
-        return f"Archivo de texto/código — nombre: {ruta.name}"
+        return f"Archivo de texto — nombre: {ruta.name}"
 
     lineas_limpias = [
         ln.strip()
@@ -69,13 +108,6 @@ def resumir_archivo(ruta: Path) -> str:
             doc = ast.get_docstring(arbol)
             funciones = [n.name for n in arbol.body if isinstance(n, ast.FunctionDef)]
             clases = [n.name for n in arbol.body if isinstance(n, ast.ClassDef)]
-            imports = []
-            for n in arbol.body:
-                if isinstance(n, ast.Import):
-                    imports.extend(a.name for a in n.names)
-                elif isinstance(n, ast.ImportFrom) and n.module:
-                    imports.append(n.module)
-
             partes = []
             if doc:
                 partes.append(doc.splitlines()[0].strip())
@@ -83,8 +115,6 @@ def resumir_archivo(ruta: Path) -> str:
                 partes.append(f"clases: {', '.join(clases)}")
             if funciones:
                 partes.append(f"funciones: {', '.join(funciones)}")
-            if imports:
-                partes.append(f"imports: {', '.join(dict.fromkeys(imports))}")
             if partes:
                 return " | ".join(partes)
         except SyntaxError:
@@ -105,36 +135,27 @@ def resumir_archivo(ruta: Path) -> str:
         if comentarios:
             partes.append(comentarios[0][:110])
 
-        imports = re.findall(r"""import\s+.*?\s+from\s+["']([^"']+)["']""", contenido)
         exports = re.findall(
             r"export\s+(?:default\s+)?(?:async\s+)?(?:function|const|let|var|class)\s+([A-Za-z0-9_]+)",
             contenido,
         )
-        if imports:
-            partes.append(f"imports: {', '.join(dict.fromkeys(imports))}")
         if exports:
             partes.append(f"exports: {', '.join(dict.fromkeys(exports))}")
         if partes:
             return " | ".join(partes)
 
-    primera = lineas_limpias[0]
-    primera = re.sub(r"^(//+|#+|<!--+|\*\*|##+)\s*", "", primera).strip()
-    if primera:
-        return primera[:130]
-
-    return f"Archivo ({ext or 'sin extensión'}) — nombre: {ruta.name}"
+    primera = re.sub(r"^(//+|#+|<!--+|\*\*|##+)\s*", "", lineas_limpias[0]).strip()
+    return primera[:130] if primera else f"Archivo ({ext}) — nombre: {ruta.name}"
 
 
 def generar_mapa(raiz: Path) -> str:
-    lineas = [
-        f"# Mapa completo del proyecto: {raiz.name}",
-        f"Ruta raíz: `{raiz}`",
-        "",
-    ]
+    lineas = [f"# Mapa del proyecto: {raiz.name}", f"Ruta raíz: `{raiz}`", ""]
 
     for dirpath, dirnames, filenames in os.walk(raiz, topdown=True):
-        dirnames.sort()
-        filenames.sort()
+        dirnames[:] = sorted(d for d in dirnames if d not in CARPETAS_EXCLUIDAS)
+        filenames = sorted(
+            f for f in filenames if Path(f).suffix.lower() not in EXTENSIONES_PESADAS
+        )
 
         ruta_actual = Path(dirpath)
         rel_dir = ruta_actual.relative_to(raiz)
@@ -149,16 +170,23 @@ def generar_mapa(raiz: Path) -> str:
         for archivo in filenames:
             ruta_archivo = ruta_actual / archivo
             try:
-                tam = formatear_tamano(ruta_archivo.stat().st_size)
+                tam_bytes = ruta_archivo.stat().st_size
+                tam_texto = formatear_tamano(tam_bytes)
             except OSError:
-                tam = "? B"
-            resumen = resumir_archivo(ruta_archivo)
+                tam_bytes = -1
+                tam_texto = "? B"
+            resumen = resumir_archivo(ruta_archivo, tam_bytes)
             rel_file = str(ruta_archivo.relative_to(raiz)).replace("\\", "/")
-            lineas.append(f"{sub_indent}- `{archivo}` (`{rel_file}`, {tam}): {resumen}")
+            lineas.append(f"{sub_indent}- `{archivo}` (`{rel_file}`, {tam_texto}): {resumen}")
 
     return "\n".join(lineas)
 
 
 if __name__ == "__main__":
     raiz_proyecto = Path(__file__).resolve().parent
-    print(generar_mapa(raiz_proyecto))
+    objetivo = raiz_proyecto
+    if len(sys.argv) > 1:
+        candidata = (raiz_proyecto / sys.argv[1]).resolve()
+        if candidata.exists():
+            objetivo = candidata
+    print(generar_mapa(objetivo))
