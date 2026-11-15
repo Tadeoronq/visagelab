@@ -3,68 +3,40 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>VisageLab - Visor Avatar 3D (4 Capas con 12 Parámetros Posturales)</title>
+  <title>VisageLab - Visor Avatar 3D (Capa 1 Esqueleto + Capa 2 Músculo)</title>
 
   <!-- ============================================================================
-  [BLOQUE 0] IMPORT MAP DE THREE.JS
-  Función: Permite que módulos internos de Three.js como GLTFLoader resuelvan el
-  especificador "three" sin lanzar TypeError en navegadores modernos ni localhost.
-  ============================================================================ -->
-  <script type="importmap">
-    {
-      "imports": {
-        "three": "https://cdn.jsdelivr.net/npm/three@0.158.0/build/three.module.js",
-        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.158.0/examples/jsm/"
-      }
-    }
-  </script>
-
-  <!-- ============================================================================
-  [BLOQUE 1] ESTILOS CSS DEL ENTORNO VISUAL Y CONTROLES
-  Función: Define la interfaz de usuario (HUD) del visor 3D, el panel lateral
-  de controles (sliders) adaptativo y el esquema oscuro de VisageLab.
+  [BLOQUE 1] ESTILOS CSS DEL VISOR 3D Y PANEL DE CONTROLES ANATÓMICOS
+  Función: Define el diseño del visor WebGL y las tarjetas desplegables del
+  panel lateral para alternar entre los controles de Esqueleto y Músculo, así
+  como el conmutador de coherencia entre "Niveles (0-10 / 0-5)" y "Centímetros".
   ============================================================================ -->
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; font-family: system-ui, -apple-system, sans-serif; }
-    body {
-      background: #090d14;
-      color: #e6edf7;
-      display: flex;
-      height: 100vh;
-      width: 100vw;
-      overflow: hidden;
-    }
+    body { background: #090d14; color: #e6edf7; display: flex; height: 100vh; width: 100vw; overflow: hidden; }
     #visor-3d {
-      flex: 1 1 auto;
-      min-width: 0;
-      min-height: 300px;
-      position: relative;
-      touch-action: none;
+      flex: 1 1 auto; min-width: 0; min-height: 300px; position: relative; touch-action: none;
       background: radial-gradient(circle at 50% 35%, #16233a 0%, #090d14 75%);
     }
     #visor-3d canvas { display: block; width: 100%; height: 100%; }
     .hud {
-      position: absolute; top: 14px; left: 14px;
-      background: rgba(13, 20, 34, 0.88); border: 1px solid rgba(94, 234, 212, 0.28);
-      border-radius: 10px; padding: 10px 14px; font-size: 12px; line-height: 1.45;
-      pointer-events: none; z-index: 5;
+      position: absolute; top: 14px; left: 14px; background: rgba(13, 20, 34, 0.88);
+      border: 1px solid rgba(94, 234, 212, 0.28); border-radius: 10px; padding: 10px 14px;
+      font-size: 12px; line-height: 1.45; pointer-events: none; z-index: 5;
     }
     .hud strong { color: #5eead4; font-size: 13px; }
     #error-visor {
       display: none; position: absolute; bottom: 14px; left: 14px; right: 14px;
       background: rgba(69, 10, 10, 0.95); color: #fecaca; border: 1px solid #f87171;
-      padding: 10px 14px; border-radius: 8px; font-size: 12px; z-index: 20;
-      white-space: pre-wrap;
+      padding: 10px 14px; border-radius: 8px; font-size: 12px; z-index: 20; white-space: pre-wrap;
     }
     #panel {
-      width: 380px; flex-shrink: 0; background: #101724; border-left: 1px solid #1e293b;
-      padding: 14px; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; z-index: 10;
+      width: 400px; flex-shrink: 0; background: #101724; border-left: 1px solid #1e293b;
+      padding: 12px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; z-index: 10;
     }
-    .tarjeta {
-      background: #172133; border: 1px solid #26354d; border-radius: 10px; padding: 12px;
-    }
+    .tarjeta { background: #172133; border: 1px solid #26354d; border-radius: 10px; padding: 11px; }
     .tarjeta h3 {
-      font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; color: #5eead4; margin-bottom: 10px;
+      font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.05em; color: #5eead4; margin-bottom: 8px;
     }
     .grid-capas { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; margin-bottom: 8px; }
     .btn-capa {
@@ -73,11 +45,16 @@
     }
     .btn-capa.activa { background: rgba(45, 212, 191, 0.16); color: #5eead4; border-color: #2dd4bf; }
     .fila-check { display: flex; align-items: center; justify-content: space-between; font-size: 12px; margin-top: 4px; }
-    .control { margin-bottom: 8px; }
-    .control label { display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 3px; color: #cbd5e1; }
+    .control { margin-bottom: 7px; }
+    .control:last-child { margin-bottom: 0; }
+    .control label { display: flex; justify-content: space-between; font-size: 11.5px; margin-bottom: 2px; color: #cbd5e1; }
     .control span.val { color: #38bdf8; font-weight: 600; }
     input[type="range"] { width: 100%; accent-color: #2dd4bf; cursor: pointer; }
-
+    select {
+      width: 100%; background: #0d1422; color: #e2e8f0; border: 1px solid #334155;
+      border-radius: 6px; padding: 5px 8px; font-size: 12px; margin-top: 2px;
+    }
+    .oculto { display: none !important; }
     @media (max-width: 820px) {
       body { flex-direction: column; }
       #visor-3d { height: 48vh; width: 100%; flex: none; }
@@ -87,16 +64,16 @@
 </head>
 <body>
   <!-- ============================================================================
-  [BLOQUE 2] CONTENEDOR 3D Y PANEL DE CONTROLES (LOS 12 PARÁMETROS)
-  Función: Renderiza el contenedor del canvas WebGL y el panel lateral con los
-  botones de visibilidad de capas (iniciando en Capa 1 Esqueleto visible) y los
-  sliders de los 12 parámetros posturales y estructurales.
+  [BLOQUE 2] ESTRUCTURA HTML DE CAPA 1 (ESQUELETO) Y CAPA 2 (SISTEMA MUSCULAR)
+  Función: Presenta los botones de capas y los controles musculares organizados
+  por Músculo Global (kg), Selector de Modo (Niveles vs Centímetros), Hombros,
+  Brazos/Muñeca, Pecho, Espalda (Trapecio/Romboides/Dorsal), Core y Tren Inferior.
   ============================================================================ -->
   <div id="visor-3d">
     <div class="hud">
-      <strong>VISAGELAB · INSPECTOR DE CAPAS</strong><br />
+      <strong>VISAGELAB · SIMULADOR ANATÓMICO 3D</strong><br />
       Arrastra para rotar · Rueda para zoom<br />
-      <span id="estado-capas">Capas activas: Esqueleto</span>
+      <span id="estado-capas">Capas activas: Esqueleto + Músculo</span>
     </div>
     <div id="error-visor"></div>
   </div>
@@ -106,7 +83,7 @@
       <h3>Visibilidad de Capas</h3>
       <div class="grid-capas">
         <button type="button" class="btn-capa activa" data-capa="esqueleto">1. Esqueleto</button>
-        <button type="button" class="btn-capa" data-capa="musculo">2. Músculo</button>
+        <button type="button" class="btn-capa activa" data-capa="musculo">2. Músculo</button>
         <button type="button" class="btn-capa" data-capa="grasa">3. Grasa</button>
         <button type="button" class="btn-capa" data-capa="piel">4. Piel</button>
       </div>
@@ -116,90 +93,231 @@
       </label>
     </div>
 
+    <!-- CONTROLES CAPA 2: SISTEMA MUSCULAR -->
     <div class="tarjeta">
-      <h3>Estructura Base y Tórax</h3>
+      <h3>Capa 2 · Músculo Global y Modo</h3>
+      <div class="control">
+        <label>Músculo General (InBody) <span class="val" id="v-musc-global">32.0 kg</span></label>
+        <input type="range" id="musc-global" min="15" max="55" step="0.5" value="32" />
+      </div>
+      <div class="control">
+        <label>Somatotipo</label>
+        <select id="morfologia">
+          <option value="ectomorfo">Ectomorfo</option>
+          <option value="mesomorfo" selected>Mesomorfo</option>
+          <option value="endomorfo">Endomorfo</option>
+        </select>
+      </div>
+      <div class="control">
+        <label>Modo de Medición (Regla de Coherencia)</label>
+        <select id="modo-musculo">
+          <option value="niveles" selected>Por Nivel de Desarrollo (0-10 y 0-5)</option>
+          <option value="centimetros">Por Cinta Métrica (Centímetros - cm)</option>
+        </select>
+      </div>
+      <div class="control">
+        <label>Prueba de Muñeca (Anchura óseo-tendinosa)</label>
+        <select id="muneca-tipo">
+          <option value="pequena">Pequeña (dedos se tocan al rodearla)</option>
+          <option value="normal" selected>Normal / Media (punto intermedio)</option>
+          <option value="grande">Grande (dedos no alcanzan a tocarse)</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- MODO EN CENTÍMETROS (Oculto cuando está en modo Niveles) -->
+    <div class="tarjeta oculto" id="caja-modo-cm">
+      <h3>Capa 2 · Perímetros en Centímetros (cm)</h3>
+      <div class="control">
+        <label>Contorno Hombros <span class="val" id="v-hombros-cm">118 cm</span></label>
+        <input type="range" id="hombros-cm" min="90" max="200" step="1" value="118" />
+      </div>
+      <div class="control">
+        <label>Brazo en "L" (Bíceps+Tríceps) <span class="val" id="v-brazo-cm">35.0 cm</span></label>
+        <input type="range" id="brazo-cm" min="22" max="75" step="0.5" value="35" />
+      </div>
+      <div class="control">
+        <label>Antebrazo <span class="val" id="v-antebrazo-cm">28.0 cm</span></label>
+        <input type="range" id="antebrazo-cm" min="18" max="48" step="0.5" value="28" />
+      </div>
+      <div class="control">
+        <label>Contorno Pecho (Pezones) <span class="val" id="v-pecho-cm">100 cm</span></label>
+        <input type="range" id="pecho-cm" min="75" max="155" step="1" value="100" />
+      </div>
+      <div class="control">
+        <label>Contorno Muslo <span class="val" id="v-muslo-cm">56.0 cm</span></label>
+        <input type="range" id="muslo-cm" min="38" max="85" step="0.5" value="56" />
+      </div>
+    </div>
+
+    <!-- MODO POR NIVELES DE DESARROLLO (0-10 Base 4) -->
+    <div class="tarjeta" id="caja-modo-niveles">
+      <h3>Capa 2 · Tren Superior y Pierna (Escala 0-10 · Base 4)</h3>
+      <div class="control">
+        <label>Deltoides Anterior <span class="val" id="v-delt-ant">4</span></label>
+        <input type="range" id="delt-ant" min="0" max="10" step="0.5" value="4" />
+      </div>
+      <div class="control">
+        <label>Deltoides Lateral <span class="val" id="v-delt-lat">4</span></label>
+        <input type="range" id="delt-lat" min="0" max="10" step="0.5" value="4" />
+      </div>
+      <div class="control">
+        <label>Deltoides Posterior <span class="val" id="v-delt-post">4</span></label>
+        <input type="range" id="delt-post" min="0" max="10" step="0.5" value="4" />
+      </div>
+      <div class="control">
+        <label>Bíceps <span class="val" id="v-biceps-n">4</span></label>
+        <input type="range" id="biceps-n" min="0" max="10" step="0.5" value="4" />
+      </div>
+      <div class="control">
+        <label>Tríceps <span class="val" id="v-triceps-n">4</span></label>
+        <input type="range" id="triceps-n" min="0" max="10" step="0.5" value="4" />
+      </div>
+      <div class="control">
+        <label>Antebrazo <span class="val" id="v-antebrazo-n">4</span></label>
+        <input type="range" id="antebrazo-n" min="0" max="10" step="0.5" value="4" />
+      </div>
+      <div class="control">
+        <label>Pectoral Superior <span class="val" id="v-pec-sup">4</span></label>
+        <input type="range" id="pec-sup" min="0" max="10" step="0.5" value="4" />
+      </div>
+      <div class="control">
+        <label>Pectoral Medio <span class="val" id="v-pec-med">4</span></label>
+        <input type="range" id="pec-med" min="0" max="10" step="0.5" value="4" />
+      </div>
+      <div class="control">
+        <label>Pectoral Inferior <span class="val" id="v-pec-inf">4</span></label>
+        <input type="range" id="pec-inf" min="0" max="10" step="0.5" value="4" />
+      </div>
+      <div class="control">
+        <label>Cuádriceps (Muslo Ant.) <span class="val" id="v-cuadriceps-n">4</span></label>
+        <input type="range" id="cuadriceps-n" min="0" max="10" step="0.5" value="4" />
+      </div>
+      <div class="control">
+        <label>Isquiotibiales (Muslo Post.) <span class="val" id="v-isquios-n">4</span></label>
+        <input type="range" id="isquios-n" min="0" max="10" step="0.5" value="4" />
+      </div>
+    </div>
+
+    <!-- ESPALDA Y GLÚTEOS (Escala 0-10) + CORE, CUELLO Y GEMELOS (Escala 0-5) -->
+    <div class="tarjeta">
+      <h3>Capa 2 · Espalda, Glúteos (0-10) y Core (0-5 · Base 2)</h3>
+      <div class="control">
+        <label>Trapecio Superior (0-10) <span class="val" id="v-trap-sup">4</span></label>
+        <input type="range" id="trap-sup" min="0" max="10" step="0.5" value="4" />
+      </div>
+      <div class="control">
+        <label>Trapecio Medio (0-10) <span class="val" id="v-trap-med">4</span></label>
+        <input type="range" id="trap-med" min="0" max="10" step="0.5" value="4" />
+      </div>
+      <div class="control">
+        <label>Trapecio Inferior (0-10) <span class="val" id="v-trap-inf">4</span></label>
+        <input type="range" id="trap-inf" min="0" max="10" step="0.5" value="4" />
+      </div>
+      <div class="control">
+        <label>Romboides Mayor (0-10) <span class="val" id="v-romboides-n">4</span></label>
+        <input type="range" id="romboides-n" min="0" max="10" step="0.5" value="4" />
+      </div>
+      <div class="control">
+        <label>Dorsal Ancho "V" (0-10) <span class="val" id="v-dorsal-n">4</span></label>
+        <input type="range" id="dorsal-n" min="0" max="10" step="0.5" value="4" />
+      </div>
+      <div class="control">
+        <label>Glúteos (0-10) <span class="val" id="v-gluteos-n">4</span></label>
+        <input type="range" id="gluteos-n" min="0" max="10" step="0.5" value="4" />
+      </div>
+      <div class="control">
+        <label>Cuello (0-5 · Base 2) <span class="val" id="v-cuello-n">2</span></label>
+        <input type="range" id="cuello-n" min="0" max="5" step="0.5" value="2" />
+      </div>
+      <div class="control">
+        <label>Abdomen (0-5 · Base 2) <span class="val" id="v-abdomen-n">2</span></label>
+        <input type="range" id="abdomen-n" min="0" max="5" step="0.5" value="2" />
+      </div>
+      <div class="control">
+        <label>Oblicuos (0-5 · Base 2) <span class="val" id="v-oblicuos-n">2</span></label>
+        <input type="range" id="oblicuos-n" min="0" max="5" step="0.5" value="2" />
+      </div>
+      <div class="control">
+        <label>Erectores Lumbares (0-5) <span class="val" id="v-lumbar-n">2</span></label>
+        <input type="range" id="lumbar-n" min="0" max="5" step="0.5" value="2" />
+      </div>
+      <div class="control">
+        <label>Pantorrillas / Gemelos (0-5) <span class="val" id="v-pantorrilla-n">2</span></label>
+        <input type="range" id="pantorrilla-n" min="0" max="5" step="0.5" value="2" />
+      </div>
+    </div>
+
+    <!-- CONTROLES CAPA 1: ESQUELETO Y POSTURA -->
+    <div class="tarjeta">
+      <h3>Capa 1 · Postura y Esqueleto (12 Parámetros)</h3>
       <div class="control">
         <label>Estatura <span class="val" id="v-estatura">175 cm</span></label>
         <input type="range" id="estatura" min="150" max="200" step="1" value="175" />
       </div>
       <div class="control">
-        <label>Morfología Tórax (10) <span class="val" id="v-morfo-torax">1.00</span></label>
+        <label>Morfología Tórax <span class="val" id="v-morfo-torax">1.00</span></label>
         <input type="range" id="morfo-torax" min="0.82" max="1.22" step="0.02" value="1.0" />
       </div>
-    </div>
-
-    <div class="tarjeta">
-      <h3>A. Columna Vertebral (1 - 4)</h3>
       <div class="control">
-        <label>1. Cifosis Dorsal <span class="val" id="v-cifosis">0.0°</span></label>
+        <label>Cifosis Dorsal <span class="val" id="v-cifosis">0.0°</span></label>
         <input type="range" id="cifosis" min="-10" max="30" step="0.5" value="0" />
       </div>
       <div class="control">
-        <label>2. Hiperlordosis Lumbar <span class="val" id="v-lordosis">0.0°</span></label>
+        <label>Hiperlordosis Lumbar <span class="val" id="v-lordosis">0.0°</span></label>
         <input type="range" id="lordosis" min="-10" max="35" step="0.5" value="0" />
       </div>
       <div class="control">
-        <label>3. Escoliosis Torácica <span class="val" id="v-escoliosis-t">0.0°</span></label>
+        <label>Escoliosis Torácica <span class="val" id="v-escoliosis-t">0.0°</span></label>
         <input type="range" id="escoliosis-t" min="-20" max="20" step="0.5" value="0" />
       </div>
       <div class="control">
-        <label>4. Escoliosis Lumbar <span class="val" id="v-escoliosis-l">0.0°</span></label>
+        <label>Escoliosis Lumbar <span class="val" id="v-escoliosis-l">0.0°</span></label>
         <input type="range" id="escoliosis-l" min="-20" max="20" step="0.5" value="0" />
       </div>
-    </div>
-
-    <div class="tarjeta">
-      <h3>B. Cabeza y Cuello (5 - 6)</h3>
       <div class="control">
-        <label>5. Antepulsión Cuello <span class="val" id="v-antepulsion">0.0 cm</span></label>
+        <label>Antepulsión Cuello <span class="val" id="v-antepulsion">0.0 cm</span></label>
         <input type="range" id="antepulsion" min="0" max="12" step="0.5" value="0" />
       </div>
       <div class="control">
-        <label>6a. Cabeceo Craneal (Pitch) <span class="val" id="v-craneo-pitch">0.0°</span></label>
+        <label>Cabeceo Craneal (Pitch) <span class="val" id="v-craneo-pitch">0.0°</span></label>
         <input type="range" id="craneo-pitch" min="-25" max="25" step="0.5" value="0" />
       </div>
       <div class="control">
-        <label>6b. Guiñada Craneal (Yaw) <span class="val" id="v-craneo-yaw">0.0°</span></label>
+        <label>Guiñada Craneal (Yaw) <span class="val" id="v-craneo-yaw">0.0°</span></label>
         <input type="range" id="craneo-yaw" min="-35" max="35" step="0.5" value="0" />
       </div>
       <div class="control">
-        <label>6c. Inclinación Craneal (Roll) <span class="val" id="v-craneo-roll">0.0°</span></label>
+        <label>Inclinación Craneal (Roll) <span class="val" id="v-craneo-roll">0.0°</span></label>
         <input type="range" id="craneo-roll" min="-20" max="20" step="0.5" value="0" />
       </div>
-    </div>
-
-    <div class="tarjeta">
-      <h3>C. Cintura Escapular (7 - 9)</h3>
       <div class="control">
-        <label>7. Hombros Adelantados <span class="val" id="v-hombros-ad">0.0°</span></label>
+        <label>Hombros Adelantados <span class="val" id="v-hombros-ad">0.0°</span></label>
         <input type="range" id="hombros-ad" min="0" max="25" step="0.5" value="0" />
       </div>
       <div class="control">
-        <label>8. Escápulas Aladas <span class="val" id="v-escapulas">0.0°</span></label>
+        <label>Escápulas Aladas <span class="val" id="v-escapulas">0.0°</span></label>
         <input type="range" id="escapulas" min="0" max="20" step="0.5" value="0" />
       </div>
       <div class="control">
-        <label>9. Asimetría Hombros <span class="val" id="v-asim-hombros">0.0 cm</span></label>
+        <label>Asimetría Hombros <span class="val" id="v-asim-hombros">0.0 cm</span></label>
         <input type="range" id="asim-hombros" min="-5" max="5" step="0.5" value="0" />
       </div>
-    </div>
-
-    <div class="tarjeta">
-      <h3>D. Pelvis y Cadera (11 - 12)</h3>
       <div class="control">
-        <label>11. Anteversión Pélvica <span class="val" id="v-anteversion">0.0°</span></label>
+        <label>Anteversión Pélvica <span class="val" id="v-anteversion">0.0°</span></label>
         <input type="range" id="anteversion" min="-15" max="25" step="0.5" value="0" />
       </div>
       <div class="control">
-        <label>12. Basculación Lateral <span class="val" id="v-basculacion">0.0°</span></label>
+        <label>Basculación Pélvica <span class="val" id="v-basculacion">0.0°</span></label>
         <input type="range" id="basculacion" min="-10" max="10" step="0.5" value="0" />
       </div>
     </div>
   </aside>
   <!-- ============================================================================
-  [BLOQUE 3] LÓGICA DE INTERFAZ Y LECTURA DE PARÁMETROS
-  Función: Lee los valores de los 12 controles del DOM, actualiza las etiquetas
-  numéricas y notifica al motor 3D cada vez que el usuario mueve un slider.
+  [BLOQUE 3] LECTURA DE ESTADO ANATÓMICO Y SINCRONIZACIÓN DE CAPAS EN THREE.JS
+  Función: Conmuta la visibilidad entre el modo "Niveles" y el modo "Centímetros",
+  recopila todos los parámetros de Capa 1 y Capa 2 y ejecuta applyAnatomyState
+  en tiempo real.
   ============================================================================ -->
   <script>
     const visorEl = document.getElementById("visor-3d");
@@ -217,13 +335,13 @@
       mostrarError(e.reason?.message || String(e.reason));
     });
 
-    // Inicia mostrando únicamente el Esqueleto (Capa 1) para inspeccionarlo sin obstrucciones
-    const visibilidad = { esqueleto: true, musculo: false, grasa: false, piel: false };
+    const visibilidad = { esqueleto: true, musculo: true, grasa: false, piel: false };
     let aplicarCambios = () => {};
 
     function leerParametros() {
       const val = (id) => parseFloat(document.getElementById(id).value);
       return {
+        // Capa 1: Esqueleto
         estaturaCm: val("estatura"),
         morfologiaTorax: val("morfo-torax"),
         cifosisDeg: val("cifosis"),
@@ -240,11 +358,72 @@
         asimetriaHombrosCm: val("asim-hombros"),
         anteversionPelvicaDeg: val("anteversion"),
         basculacionPelvicaDeg: val("basculacion"),
-        translucida: document.getElementById("piel-translucida").checked
+        translucida: document.getElementById("piel-translucida").checked,
+
+        // Capa 2: Sistema Muscular
+        musculoGlobalKg: val("musc-global"),
+        morfologia: document.getElementById("morfologia").value,
+        modoMusculo: document.getElementById("modo-musculo").value,
+        munecaTipo: document.getElementById("muneca-tipo").value,
+
+        // Modo Centímetros
+        hombrosCm: val("hombros-cm"),
+        brazoCm: val("brazo-cm"),
+        bicepsCm: val("brazo-cm"),
+        antebrazoCm: val("antebrazo-cm"),
+        pechoCm: val("pecho-cm"),
+        musloCm: val("muslo-cm"),
+
+        // Modo Niveles (0-10 y 0-5)
+        deltoidesAnterior: val("delt-ant"),
+        deltoidesLateral: val("delt-lat"),
+        deltoidesPosterior: val("delt-post"),
+        bicepsNivel: val("biceps-n"),
+        tricepsNivel: val("triceps-n"),
+        antebrazoNivel: val("antebrazo-n"),
+        pectoralSuperior: val("pec-sup"),
+        pectoralMedio: val("pec-med"),
+        pectoralInferior: val("pec-inf"),
+        trapecioSuperior: val("trap-sup"),
+        trapecioMedio: val("trap-med"),
+        trapecioInferior: val("trap-inf"),
+        romboidesNivel: val("romboides-n"),
+        dorsalAnchoNivel: val("dorsal-n"),
+        gluteosNivel: val("gluteos-n"),
+        cuadricepsNivel: val("cuadriceps-n"),
+        isquiotibialesNivel: val("isquios-n"),
+        cuelloNivel: val("cuello-n"),
+        abdomenNivel: val("abdomen-n"),
+        oblicuosNivel: val("oblicuos-n"),
+        lumbarNivel: val("lumbar-n"),
+        pantorrillaNivel: val("pantorrilla-n")
       };
     }
 
     function actualizarEtiquetas(p) {
+      const esCm = p.modoMusculo === "centimetros";
+      document.getElementById("caja-modo-cm").classList.toggle("oculto", !esCm);
+      document.getElementById("caja-modo-niveles").classList.toggle("oculto", esCm);
+
+      document.getElementById("v-musc-global").textContent = `${p.musculoGlobalKg.toFixed(1)} kg`;
+      document.getElementById("v-hombros-cm").textContent = `${p.hombrosCm.toFixed(0)} cm`;
+      document.getElementById("v-brazo-cm").textContent = `${p.brazoCm.toFixed(1)} cm`;
+      document.getElementById("v-antebrazo-cm").textContent = `${p.antebrazoCm.toFixed(1)} cm`;
+      document.getElementById("v-pecho-cm").textContent = `${p.pechoCm.toFixed(0)} cm`;
+      document.getElementById("v-muslo-cm").textContent = `${p.musloCm.toFixed(1)} cm`;
+
+      const mapNiveles = [
+        ["v-delt-ant", p.deltoidesAnterior], ["v-delt-lat", p.deltoidesLateral], ["v-delt-post", p.deltoidesPosterior],
+        ["v-biceps-n", p.bicepsNivel], ["v-triceps-n", p.tricepsNivel], ["v-antebrazo-n", p.antebrazoNivel],
+        ["v-pec-sup", p.pectoralSuperior], ["v-pec-med", p.pectoralMedio], ["v-pec-inf", p.pectoralInferior],
+        ["v-trap-sup", p.trapecioSuperior], ["v-trap-med", p.trapecioMedio], ["v-trap-inf", p.trapecioInferior],
+        ["v-romboides-n", p.romboidesNivel], ["v-dorsal-n", p.dorsalAnchoNivel], ["v-gluteos-n", p.gluteosNivel],
+        ["v-cuadriceps-n", p.cuadricepsNivel], ["v-isquios-n", p.isquiotibialesNivel],
+        ["v-cuello-n", p.cuelloNivel], ["v-abdomen-n", p.abdomenNivel], ["v-oblicuos-n", p.oblicuosNivel],
+        ["v-lumbar-n", p.lumbarNivel], ["v-pantorrilla-n", p.pantorrillaNivel]
+      ];
+      mapNiveles.forEach(([id, v]) => { document.getElementById(id).textContent = v.toFixed(1); });
+
       document.getElementById("v-estatura").textContent = `${p.estaturaCm.toFixed(0)} cm`;
       document.getElementById("v-morfo-torax").textContent = p.morfologiaTorax.toFixed(2);
       document.getElementById("v-cifosis").textContent = `${p.cifosisDeg.toFixed(1)}°`;
@@ -278,7 +457,7 @@
       });
     });
 
-    document.querySelectorAll("#panel input").forEach((el) => {
+    document.querySelectorAll("#panel input, #panel select").forEach((el) => {
       const onChange = () => {
         actualizarEtiquetas(leerParametros());
         aplicarCambios();
@@ -290,11 +469,6 @@
     actualizarEtiquetas(leerParametros());
   </script>
 
-  <!-- ============================================================================
-  [BLOQUE 4] MOTOR THREE.JS, ILUMINACIÓN, REJILLA Y SINCRONIZACIÓN DE CAPAS
-  Función: Crea la escena 3D, las luces direccionales/ambientales, la rejilla de
-  piso, carga las 4 capas y gestiona la cámara orbital interactiva.
-  ============================================================================ -->
   <script type="module">
     import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.158.0/build/three.module.js";
     import { crearCapaEsqueleto } from "./capa_esqueleto.js";
@@ -302,7 +476,7 @@
     import { crearCapaGrasa } from "./capa_grasa.js";
     import { crearCapaPiel } from "./capa_piel.js";
 
-    const visorW = () => Math.max(300, visorEl.clientWidth || window.innerWidth - 380);
+    const visorW = () => Math.max(300, visorEl.clientWidth || window.innerWidth - 400);
     const visorH = () => Math.max(300, visorEl.clientHeight || window.innerHeight);
 
     const escena = new THREE.Scene();
@@ -326,9 +500,7 @@
     luzRelleno.position.set(-3, 2, -2);
     escena.add(luzRelleno);
 
-    // Rejilla de piso para referencia visual de altura y postura
-    const rejilla = new THREE.GridHelper(4, 16, 0x2dd4bf, 0x1e293b);
-    escena.add(rejilla);
+    escena.add(new THREE.GridHelper(4, 16, 0x2dd4bf, 0x1e293b));
 
     const avatarRaiz = new THREE.Group();
     escena.add(avatarRaiz);
@@ -340,12 +512,7 @@
 
     avatarRaiz.add(capaEsqueleto.group, capaMusculo.group, capaGrasa.group, capaPiel.group);
 
-    const capas = {
-      esqueleto: capaEsqueleto,
-      musculo: capaMusculo,
-      grasa: capaGrasa,
-      piel: capaPiel
-    };
+    const capas = { esqueleto: capaEsqueleto, musculo: capaMusculo, grasa: capaGrasa, piel: capaPiel };
 
     window.aplicarCambios = aplicarCambios = () => {
       try {
@@ -354,9 +521,9 @@
           capas[clave].group.visible = activa;
         });
 
-        capaEsqueleto.actualizar(p);
+        capaEsqueleto.applyAnatomyState(p);
         const contexto = { ...p, anclajes: capaEsqueleto.anclajes };
-        capaMusculo.actualizar(contexto);
+        capaMusculo.applyAnatomyState(contexto);
         capaGrasa.actualizar(contexto);
         capaPiel.actualizar(contexto);
       } catch (err) {
@@ -364,9 +531,7 @@
       }
     };
 
-    let arrastrando = false;
-    let prevX = 0, prevY = 0;
-    let rotY = 0, rotX = 0.12, distancia = 3.1;
+    let arrastrando = false, prevX = 0, prevY = 0, rotY = 0, rotX = 0.12, distancia = 3.1;
 
     function actualizarCamara() {
       const yObjetivo = 0.92;
