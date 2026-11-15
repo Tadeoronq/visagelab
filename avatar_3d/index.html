@@ -504,10 +504,174 @@
     </div>
   </aside>
   <!-- ============================================================================
-  [BLOQUE 4] FILTRADO DE PANEL POR CAPA, ÁRBOL DE RAMAS Y MOTOR THREE.JS
-  Función: Oculta o muestra los controles laterales según las capas activas
-  (Esqueleto, Músculo o ambas), gestiona la apertura de sub-ramas y actualiza
-  el modelo 3D en tiempo real.
+    [BLOQUE CAPA 3] PANEL EXCLUSIVO DE CAPA 3 (INFORME GENERAL DE GRASA)
+    Función: Presenta los controles globales (% y kg), las 5 grasas segmentarias
+    en kg, las medidas en centímetros (cuello, cintura, cadera), las zonas
+    específicas con movilidad (Cara, Cuello, Pecho, Espalda, Costados) y la
+    medición por Plicómetro (pliegues cutáneos en mm).
+    ============================================================================ -->
+    <div class="bloque-capa oculto" data-panel-capa="grasa">
+      <div class="titulo-capa">Controles de Capa 3 · Tejido Adiposo (Grasa)</div>
+
+      <!-- 1. PARÁMETROS GLOBALES DE GRASA (% Y KG) -->
+      <div class="tarjeta">
+        <h3>1. Parámetros Globales de Grasa (% y kg)</h3>
+        <div class="control">
+          <label>Modo Global (InBody / Bioimpedancia)</label>
+          <select id="grasa-global-unidad">
+            <option value="pct" selected>Porcentaje Global (%)</option>
+            <option value="kg">Masa Grasa Total (kg)</option>
+            <option value="ambos">Combinado (% + kg)</option>
+          </select>
+        </div>
+        <div class="control">
+          <label>Grasa Total en Porcentaje (%) <span class="val" id="v-grasa-total-pct">18.0 %</span></label>
+          <input type="range" id="grasa-total-pct" min="4" max="50" step="0.5" value="18" />
+        </div>
+        <div class="control">
+          <label>Grasa Total en Kilogramos (kg) <span class="val" id="v-grasa-total-kg">13.5 kg</span></label>
+          <input type="range" id="grasa-total-kg" min="3" max="60" step="0.5" value="13.5" />
+        </div>
+      </div>
+
+      <!-- 2. GRASAS SEGMENTARIAS EN KILOGRAMOS (KG) -->
+      <details class="gran-rama" open>
+        <summary>2. Grasas Segmentarias (en Kilogramos kg)</summary>
+        <div class="sub-rama">
+          <div class="sub-rama-titulo">5 Segmentos Corporales (kg)</div>
+          <div class="control">
+            <label>1. Grasa del Tronco (kg) <span class="val" id="v-grasa-tronco-kg">7.0 kg</span></label>
+            <input type="range" id="grasa-tronco-kg" min="1.2" max="32" step="0.2" value="7.0" />
+          </div>
+          <div class="control">
+            <label>2. Grasa Superior Derecha (kg) <span class="val" id="v-grasa-sup-der-kg">0.9 kg</span></label>
+            <input type="range" id="grasa-sup-der-kg" min="0.2" max="6.5" step="0.1" value="0.9" />
+          </div>
+          <div class="control">
+            <label>3. Grasa Superior Izquierda (kg) <span class="val" id="v-grasa-sup-izq-kg">0.9 kg</span></label>
+            <input type="range" id="grasa-sup-izq-kg" min="0.2" max="6.5" step="0.1" value="0.9" />
+          </div>
+          <div class="control">
+            <label>4. Grasa Inferior Derecha (kg) <span class="val" id="v-grasa-inf-der-kg">2.3 kg</span></label>
+            <input type="range" id="grasa-inf-der-kg" min="0.8" max="15.0" step="0.1" value="2.3" />
+          </div>
+          <div class="control">
+            <label>5. Grasa Inferior Izquierda (kg) <span class="val" id="v-grasa-inf-izq-kg">2.3 kg</span></label>
+            <input type="range" id="grasa-inf-izq-kg" min="0.8" max="15.0" step="0.1" value="2.3" />
+          </div>
+        </div>
+      </details>
+
+      <!-- 3. CONTROLES POR ZONAS Y MEDIDAS EN CENTÍMETROS (CM) -->
+      <details class="gran-rama" open>
+        <summary>3. Medidas en Centímetros (cm) y Zonas</summary>
+        <div class="sub-rama">
+          <div class="sub-rama-titulo">↳ Perímetros en Centímetros (cm)</div>
+          <div class="control">
+            <label>Cuello (cm) <span class="val" id="v-cuello-cm">38.0 cm</span></label>
+            <input type="range" id="cuello-cm" min="28" max="56" step="0.5" value="38" />
+          </div>
+          <div class="control">
+            <label>Cintura (cm) <span class="val" id="v-cintura-cm">80.0 cm</span></label>
+            <input type="range" id="cintura-cm" min="52" max="145" step="0.5" value="80" />
+          </div>
+          <div class="control">
+            <label>Cadera (cm) <span class="val" id="v-cadera-cm">96.0 cm</span></label>
+            <input type="range" id="cadera-cm" min="70" max="155" step="0.5" value="96" />
+          </div>
+        </div>
+
+        <div class="sub-rama">
+          <div class="sub-rama-titulo">↳ Zonas Específicas y Movilidad (0 a 10)</div>
+          <div class="control">
+            <label>Cara (Surcos 0 ↔ Cachetes 10) <span class="val" id="v-grasa-cara">4.0</span></label>
+            <input type="range" id="grasa-cara" min="0" max="10" step="0.5" value="4" />
+          </div>
+          <div class="control">
+            <label>Cuello / Submentón (0-10) <span class="val" id="v-grasa-cuello">4.0</span></label>
+            <input type="range" id="grasa-cuello" min="0" max="10" step="0.5" value="4" />
+          </div>
+          <div class="control">
+            <label>Pecho / Región Pectoral (0-10) <span class="val" id="v-grasa-pecho">4.0</span></label>
+            <input type="range" id="grasa-pecho" min="0" max="10" step="0.5" value="4" />
+          </div>
+          <div class="control">
+            <label>Costados / Flancos Laterales (0-10) <span class="val" id="v-grasa-costados">4.0</span></label>
+            <input type="range" id="grasa-costados" min="0" max="10" step="0.5" value="4" />
+          </div>
+          <div class="control">
+            <label>Movilidad / Ajuste Vertical Tejido <span class="val" id="v-grasa-mov">0.0</span></label>
+            <input type="range" id="grasa-mov" min="-5" max="5" step="0.5" value="0" />
+          </div>
+        </div>
+
+        <div class="sub-rama">
+          <div class="sub-rama-titulo">↳ Espalda (Dorsal / Lumbar)</div>
+          <select id="grasa-espalda-modo">
+            <option value="general" selected>Espalda en General</option>
+            <option value="desglosado">Desglosada (Alta, Media y Baja)</option>
+          </select>
+          <div class="control" id="grasa-esp-general-wrap">
+            <label>Grasa Espalda General (0-10) <span class="val" id="v-grasa-esp-gen">4.0</span></label>
+            <input type="range" id="grasa-esp-gen" min="0" max="10" step="0.5" value="4" />
+          </div>
+          <div class="oculto" id="grasa-esp-desglosado-wrap">
+            <div class="control">
+              <label>↳ Espalda Alta (0-10) <span class="val" id="v-grasa-esp-alta">4.0</span></label>
+              <input type="range" id="grasa-esp-alta" min="0" max="10" step="0.5" value="4" />
+            </div>
+            <div class="control">
+              <label>↳ Espalda Media (0-10) <span class="val" id="v-grasa-esp-media">4.0</span></label>
+              <input type="range" id="grasa-esp-media" min="0" max="10" step="0.5" value="4" />
+            </div>
+            <div class="control">
+              <label>↳ Espalda Baja / Lumbar (0-10) <span class="val" id="v-grasa-esp-baja">4.0</span></label>
+              <input type="range" id="grasa-esp-baja" min="0" max="10" step="0.5" value="4" />
+            </div>
+          </div>
+        </div>
+      </details>
+
+      <!-- 4. MEDICIÓN POR PLICÓMETRO (PLIEGUES CUTÁNEOS EN MM) -->
+      <details class="gran-rama">
+        <summary>4. Medición por Plicómetro (Pliegues Cutáneos)</summary>
+        <label class="fila-check" style="margin-bottom:8px;">
+          <span>Activar calibración por Plicómetro (mm)</span>
+          <input type="checkbox" id="plicometro-activo" />
+        </label>
+        <div class="sub-rama" id="caja-plicometro">
+          <div class="sub-rama-titulo">Pliegues Subcutáneos (mm)</div>
+          <div class="control">
+            <label>Pliegue Pectoral <span class="val" id="v-plic-pectoral">10 mm</span></label>
+            <input type="range" id="plic-pectoral" min="2" max="55" step="1" value="10" />
+          </div>
+          <div class="control">
+            <label>Pliegue Tricipital (Brazo) <span class="val" id="v-plic-tricipital">12 mm</span></label>
+            <input type="range" id="plic-tricipital" min="2" max="55" step="1" value="12" />
+          </div>
+          <div class="control">
+            <label>Pliegue Subescapular (Espalda) <span class="val" id="v-plic-subescapular">14 mm</span></label>
+            <input type="range" id="plic-subescapular" min="2" max="55" step="1" value="14" />
+          </div>
+          <div class="control">
+            <label>Pliegue Suprailiaco (Costado) <span class="val" id="v-plic-suprailiaco">15 mm</span></label>
+            <input type="range" id="plic-suprailiaco" min="2" max="55" step="1" value="15" />
+          </div>
+          <div class="control">
+            <label>Pliegue Abdominal <span class="val" id="v-plic-abdominal">18 mm</span></label>
+            <input type="range" id="plic-abdominal" min="2" max="55" step="1" value="18" />
+          </div>
+          <div class="control">
+            <label>Pliegue Muslo Anterior <span class="val" id="v-plic-muslo">16 mm</span></label>
+            <input type="range" id="plic-muslo" min="2" max="55" step="1" value="16" />
+          </div>
+        </div>
+      </details>
+    </div>
+  <!-- ============================================================================
+  [BLOQUE 4] LECTURA DE CONTROLES (CAPAS 1, 2 Y 3 CON PLICÓMETRO Y PERÍMETROS)
+  Función: Recopila todos los valores del DOM, filtra exclusivamente el panel de
+  las capas activas y actualiza las etiquetas en tiempo real.
   ============================================================================ -->
   <script>
     const visorEl = document.getElementById("visor-3d");
@@ -525,10 +689,9 @@
       mostrarError(e.reason?.message || String(e.reason));
     });
 
-    const visibilidad = { esqueleto: true, musculo: true, grasa: false, piel: false };
+    const visibilidad = { esqueleto: true, musculo: true, grasa: true, piel: false };
     let aplicarCambios = () => {};
 
-    // Filtra el panel derecho para mostrar EXCLUSIVAMENTE los controles de las capas seleccionadas
     function sincronizarPanelesPorCapa() {
       document.querySelectorAll("[data-panel-capa]").forEach((bloque) => {
         const capa = bloque.getAttribute("data-panel-capa");
@@ -540,7 +703,7 @@
       const val = (id) => parseFloat(document.getElementById(id).value);
       const txt = (id) => document.getElementById(id).value;
       return {
-        // Capa 1
+        // Capa 1: Esqueleto
         estaturaCm: val("estatura"),
         morfologiaTorax: val("morfo-torax"),
         cifosisDeg: val("cifosis"),
@@ -559,11 +722,9 @@
         basculacionPelvicaDeg: val("basculacion"),
         translucida: document.getElementById("piel-translucida").checked,
 
-        // Capa 2 Global
+        // Capa 2: Músculo
         musculoGlobalKg: val("musc-global"),
         morfologia: txt("morfologia"),
-
-        // Rama Deltoides
         deltoidesModo: txt("deltoides-modo"),
         deltoidesUnidad: txt("deltoides-unidad"),
         deltoidesGeneralNivel: val("delt-gen-n"),
@@ -571,8 +732,6 @@
         deltoidesAnterior: val("delt-ant"),
         deltoidesLateral: val("delt-lat"),
         deltoidesPosterior: val("delt-post"),
-
-        // Rama Brazos
         brazoModo: txt("brazo-modo"),
         brazoUnidad: txt("brazo-unidad"),
         brazoGeneralNivel: val("brazo-gen-n"),
@@ -584,8 +743,6 @@
         antebrazoNivel: val("antebrazo-n"),
         antebrazoCm: val("antebrazo-cm"),
         munecaTipo: txt("muneca-tipo"),
-
-        // Rama Pecho
         pechoModo: txt("pecho-modo"),
         pechoUnidad: txt("pecho-unidad"),
         pechoGeneralNivel: val("pecho-gen-n"),
@@ -593,8 +750,6 @@
         pectoralSuperior: val("pec-sup"),
         pectoralMedio: val("pec-med"),
         pectoralInferior: val("pec-inf"),
-
-        // Rama Espalda
         trapecioModo: txt("trapecio-modo"),
         trapecioGeneralNivel: val("trap-gen-n"),
         trapecioSuperior: val("trap-sup"),
@@ -602,14 +757,10 @@
         trapecioInferior: val("trap-inf"),
         romboidesNivel: val("romboides-n"),
         dorsalAnchoNivel: val("dorsal-n"),
-
-        // Rama Cuello y Core
         cuelloNivel: val("cuello-n"),
         abdomenNivel: val("abdomen-n"),
         oblicuosNivel: val("oblicuos-n"),
         lumbarNivel: val("lumbar-n"),
-
-        // Rama Tren Inferior
         gluteosNivel: val("gluteos-n"),
         musloModo: txt("muslo-modo"),
         musloUnidad: txt("muslo-unidad"),
@@ -617,14 +768,44 @@
         musloCm: val("muslo-cm"),
         cuadricepsNivel: val("cuadriceps-n"),
         isquiotibialesNivel: val("isquios-n"),
-        pantorrillaNivel: val("pantorrilla-n")
+        pantorrillaNivel: val("pantorrilla-n"),
+
+        // Capa 3: Tejido Adiposo (Informe General Completo)
+        grasaGlobalUnidad: txt("grasa-global-unidad"),
+        grasaTotalPct: val("grasa-total-pct"),
+        grasaTotalKg: val("grasa-total-kg"),
+        grasaTroncoKg: val("grasa-tronco-kg"),
+        grasaSupDerKg: val("grasa-sup-der-kg"),
+        grasaSupIzqKg: val("grasa-sup-izq-kg"),
+        grasaInfDerKg: val("grasa-inf-der-kg"),
+        grasaInfIzqKg: val("grasa-inf-izq-kg"),
+        cuelloCm: val("cuello-cm"),
+        cinturaCm: val("cintura-cm"),
+        caderaCm: val("cadera-cm"),
+        grasaCaraNivel: val("grasa-cara"),
+        grasaCuelloNivel: val("grasa-cuello"),
+        grasaPechoNivel: val("grasa-pecho"),
+        grasaCostadosNivel: val("grasa-costados"),
+        grasaMovilidadVertical: val("grasa-mov"),
+        grasaEspaldaModo: txt("grasa-espalda-modo"),
+        grasaEspaldaGeneralNivel: val("grasa-esp-gen"),
+        grasaEspaldaAltaNivel: val("grasa-esp-alta"),
+        grasaEspaldaMediaNivel: val("grasa-esp-media"),
+        grasaEspaldaBajaNivel: val("grasa-esp-baja"),
+        plicometroActivo: document.getElementById("plicometro-activo").checked,
+        plieguePectoralMm: val("plic-pectoral"),
+        pliegueTricipitalMm: val("plic-tricipital"),
+        pliegueSubescapularMm: val("plic-subescapular"),
+        pliegueSuprailiacoMm: val("plic-suprailiaco"),
+        pliegueAbdominalMm: val("plic-abdominal"),
+        pliegueMusloMm: val("plic-muslo")
       };
     }
 
     function actualizarArbolYEtiquetas(p) {
       sincronizarPanelesPorCapa();
 
-      // Visibilidad de Sub-ramas según selección del usuario
+      // Conmutadores de sub-ramas Capa 2
       document.getElementById("delt-caja-general").classList.toggle("oculto", p.deltoidesModo !== "general");
       document.getElementById("delt-caja-desglosado").classList.toggle("oculto", p.deltoidesModo !== "desglosado");
       document.getElementById("delt-gen-nivel-wrap").classList.toggle("oculto", p.deltoidesUnidad !== "nivel");
@@ -650,7 +831,42 @@
       document.getElementById("muslo-gen-nivel-wrap").classList.toggle("oculto", p.musloUnidad !== "nivel");
       document.getElementById("muslo-gen-cm-wrap").classList.toggle("oculto", p.musloUnidad !== "cm");
 
-      // Etiquetas numéricas
+      // Conmutadores de sub-ramas Capa 3
+      document.getElementById("grasa-esp-general-wrap").classList.toggle("oculto", p.grasaEspaldaModo !== "general");
+      document.getElementById("grasa-esp-desglosado-wrap").classList.toggle("oculto", p.grasaEspaldaModo !== "desglosado");
+
+      // Etiquetas Capa 3
+      document.getElementById("v-grasa-total-pct").textContent = `${p.grasaTotalPct.toFixed(1)} %`;
+      document.getElementById("v-grasa-total-kg").textContent = `${p.grasaTotalKg.toFixed(1)} kg`;
+      document.getElementById("v-grasa-tronco-kg").textContent = `${p.grasaTroncoKg.toFixed(1)} kg`;
+      document.getElementById("v-grasa-sup-der-kg").textContent = `${p.grasaSupDerKg.toFixed(1)} kg`;
+      document.getElementById("v-grasa-sup-izq-kg").textContent = `${p.grasaSupIzqKg.toFixed(1)} kg`;
+      document.getElementById("v-grasa-inf-der-kg").textContent = `${p.grasaInfDerKg.toFixed(1)} kg`;
+      document.getElementById("v-grasa-inf-izq-kg").textContent = `${p.grasaInfIzqKg.toFixed(1)} kg`;
+
+      document.getElementById("v-cuello-cm").textContent = `${p.cuelloCm.toFixed(1)} cm`;
+      document.getElementById("v-cintura-cm").textContent = `${p.cinturaCm.toFixed(1)} cm`;
+      document.getElementById("v-cadera-cm").textContent = `${p.caderaCm.toFixed(1)} cm`;
+
+      document.getElementById("v-grasa-cara").textContent = p.grasaCaraNivel.toFixed(1);
+      document.getElementById("v-grasa-cuello").textContent = p.grasaCuelloNivel.toFixed(1);
+      document.getElementById("v-grasa-pecho").textContent = p.grasaPechoNivel.toFixed(1);
+      document.getElementById("v-grasa-costados").textContent = p.grasaCostadosNivel.toFixed(1);
+      document.getElementById("v-grasa-mov").textContent = p.grasaMovilidadVertical.toFixed(1);
+
+      document.getElementById("v-grasa-esp-gen").textContent = p.grasaEspaldaGeneralNivel.toFixed(1);
+      document.getElementById("v-grasa-esp-alta").textContent = p.grasaEspaldaAltaNivel.toFixed(1);
+      document.getElementById("v-grasa-esp-media").textContent = p.grasaEspaldaMediaNivel.toFixed(1);
+      document.getElementById("v-grasa-esp-baja").textContent = p.grasaEspaldaBajaNivel.toFixed(1);
+
+      document.getElementById("v-plic-pectoral").textContent = `${p.plieguePectoralMm.toFixed(0)} mm`;
+      document.getElementById("v-plic-tricipital").textContent = `${p.pliegueTricipitalMm.toFixed(0)} mm`;
+      document.getElementById("v-plic-subescapular").textContent = `${p.pliegueSubescapularMm.toFixed(0)} mm`;
+      document.getElementById("v-plic-suprailiaco").textContent = `${p.pliegueSuprailiacoMm.toFixed(0)} mm`;
+      document.getElementById("v-plic-abdominal").textContent = `${p.pliegueAbdominalMm.toFixed(0)} mm`;
+      document.getElementById("v-plic-muslo").textContent = `${p.pliegueMusloMm.toFixed(0)} mm`;
+
+      // Etiquetas Capa 2 y Capa 1
       document.getElementById("v-musc-global").textContent = `${p.musculoGlobalKg.toFixed(1)} kg`;
       document.getElementById("v-hombros-cm").textContent = `${p.hombrosCm.toFixed(0)} cm`;
       document.getElementById("v-brazo-cm").textContent = `${p.brazoCm.toFixed(1)} cm`;
@@ -722,16 +938,16 @@
   </script>
 
   <!-- ============================================================================
-  [BLOQUE 5] MOTOR WEBGL THREE.JS CON ROMPEDOR DE CACHÉ (?v=3)
-  Función: Importa las 4 capas forzando al navegador a ignorar el memory cache
-  antiguo y sincroniza applyAnatomyState / actualizar sin errores.
+  [BLOQUE 5] MOTOR WEBGL THREE.JS Y CONEXIÓN VOLUMÉTRICA HACIA LA PIEL (?v=5)
+  Función: Ejecuta applyAnatomyState en cascada (Esqueleto -> Músculo -> Grasa ->
+  Piel) inyectando estadoVolumetrico de la Capa 3 en la Capa 4.
   ============================================================================ -->
   <script type="module">
     import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.158.0/build/three.module.js";
-    import { crearCapaEsqueleto } from "./capa_esqueleto.js?v=3";
-    import { crearCapaMusculo } from "./capa_musculo.js?v=3";
-    import { crearCapaGrasa } from "./capa_grasa.js?v=3";
-    import { crearCapaPiel } from "./capa_piel.js?v=3";
+    import { crearCapaEsqueleto } from "./capa_esqueleto.js?v=5";
+    import { crearCapaMusculo } from "./capa_musculo.js?v=5";
+    import { crearCapaGrasa } from "./capa_grasa.js?v=5";
+    import { crearCapaPiel } from "./capa_piel.js?v=5";
 
     const visorW = () => Math.max(300, visorEl.clientWidth || window.innerWidth - 410);
     const visorH = () => Math.max(300, visorEl.clientHeight || window.innerHeight);
@@ -783,7 +999,10 @@
         const contexto = { ...p, anclajes: capaEsqueleto.anclajes };
         (capaMusculo.applyAnatomyState || capaMusculo.actualizar)(contexto);
         (capaGrasa.applyAnatomyState || capaGrasa.actualizar)(contexto);
-        (capaPiel.applyAnatomyState || capaPiel.actualizar)(contexto);
+
+        // Pasa las métricas adiposas calculadas a la Capa 4 (Piel)
+        const contextoPiel = { ...contexto, estadoGrasa: capaGrasa.estadoVolumetrico };
+        (capaPiel.applyAnatomyState || capaPiel.actualizar)(contextoPiel);
       } catch (err) {
         mostrarError(err.message || String(err));
       }
@@ -832,3 +1051,5 @@
     }
     bucleAnimacion();
   </script>
+</body>
+</html>
