@@ -608,4 +608,4 @@ export function crearCapaEsqueleto(opciones = {}) {
     }
 
     sincronizarAnclajes();
-  }
+  }}
