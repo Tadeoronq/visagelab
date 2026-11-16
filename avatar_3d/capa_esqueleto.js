@@ -1,12 +1,11 @@
 // ============================================================================
-// VISAGELAB - CAPA 1: SISTEMA ESQUELÉTICO (BRAZOS SEPARADOS Y applyAnatomyState)
+// VISAGELAB - CAPA 1: SISTEMA ESQUELÉTICO COMPLETO (BRAZOS ABIERTOS EN A-POSE)
 // ============================================================================
 
 // ============================================================================
 // [BLOQUE 1] IMPORTACIONES DIRECTAS, TEXTURA PBR Y GEOMETRÍA BASE
 // Función: Importa Three.js y GLTFLoader, genera la textura de porosidad ósea
-// cortical en canvas 2D y define los constructores de diáfisis, vértebras,
-// manos y pies articulados.
+// cortical en canvas 2D y define los constructores de diáfisis y vértebras.
 // ============================================================================
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.158.0/build/three.module.js";
 import { GLTFLoader } from "https://cdn.jsdelivr.net/npm/three@0.158.0/examples/jsm/loaders/GLTFLoader.js";
@@ -585,7 +584,6 @@ export function crearCapaEsqueleto(opciones = {}) {
       cad.hHombro.position.x = s * 0.185 * anchoHombros * (1 + Math.max(0, morfologiaTorax - 1.0) * 0.5);
       cad.hHombro.rotation.x += protraccionRad * 0.55;
       cad.hHombro.rotation.y += s * protraccionRad * 0.40;
-      // Signo POSITIVO (+s): abre el brazo más hacia afuera al crecer el torso
       cad.hHombro.rotation.z += s * abduccionExtra;
     }
     aplicarCinturaEscapular(cadBrazoIzq, "L");
@@ -608,4 +606,72 @@ export function crearCapaEsqueleto(opciones = {}) {
     }
 
     sincronizarAnclajes();
-  }}
+  }
+
+  // ==========================================================================
+  // [BLOQUE 6] CARGADOR .GLB CON CAPTURA DE POSE NEUTRA Y RETURN DEL MÓDULO
+  // Función: Importa un modelo .glb si existe y retorna { group, anclajes, ... }
+  // para que index.html pueda añadir capaEsqueleto.group a la escena sin error.
+  // ==========================================================================
+  function cargarModeloGLB(url) {
+    if (!url) return Promise.resolve(false);
+    const loader = new GLTFLoader();
+    return new Promise((resolve, reject) => {
+      loader.load(
+        url,
+        (gltf) => {
+          contenedorGlb.clear();
+          huesosGlbMap = {};
+          restPoseGlb = {};
+          skinnedMeshGlb = null;
+
+          gltf.scene.traverse((obj) => {
+            if (obj.isBone) {
+              huesosGlbMap[obj.name] = obj;
+              restPoseGlb[obj.name] = {
+                position: obj.position.clone(),
+                rotation: obj.rotation.clone(),
+                scale: obj.scale.clone()
+              };
+            }
+            if (obj.isMesh) {
+              obj.castShadow = true;
+              obj.receiveShadow = true;
+              obj.material = materialHueso;
+              if (obj.isSkinnedMesh && !skinnedMeshGlb) {
+                skinnedMeshGlb = obj;
+              }
+            }
+          });
+
+          contenedorGlb.add(gltf.scene);
+          armatureRaiz.visible = false;
+          contenedorGlb.visible = true;
+          applyAnatomyState(ultimoParams);
+          resolve(true);
+        },
+        undefined,
+        (err) => reject(err)
+      );
+    });
+  }
+
+  if (opciones.urlModeloGlb) {
+    cargarModeloGLB(opciones.urlModeloGlb).catch(() => {
+      armatureRaiz.visible = true;
+      contenedorGlb.visible = false;
+    });
+  }
+
+  applyAnatomyState();
+
+  return {
+    group,
+    anclajes,
+    huesos,
+    restPose,
+    applyAnatomyState,
+    actualizar: applyAnatomyState,
+    cargarModeloGLB
+  };
+}
