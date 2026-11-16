@@ -3,13 +3,12 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>VisageLab - Visor Avatar 3D (4 Capas Completas)</title>
+  <title>VisageLab - Visor Avatar 3D (5 Capas: Cuerpo + Estructura Craneofacial)</title>
 
   <!-- ============================================================================
-  [BLOQUE 1] IMPORT MAP DE THREE.JS Y ESTILOS CSS DE LAS 4 CAPAS
-  Función: Resuelve el especificador "three" requerido por GLTFLoader y estiliza
-  el visor 3D, el panel de control filtrado por capa y los botones de importación
-  de diagnóstico facial.
+  [BLOQUE 1] IMPORT MAP DE THREE.JS Y ESTILOS CSS DE LAS 5 CAPAS
+  Función: Resuelve el especificador "three" para GLTFLoader y estiliza el
+  visor 3D, el botón de encuadre facial y el panel lateral filtrado por capa.
   ============================================================================ -->
   <script type="importmap">
     {
@@ -31,16 +30,22 @@
     .hud {
       position: absolute; top: 14px; left: 14px; background: rgba(13, 20, 34, 0.88);
       border: 1px solid rgba(94, 234, 212, 0.28); border-radius: 10px; padding: 10px 14px;
-      font-size: 12px; line-height: 1.45; pointer-events: none; z-index: 5;
+      font-size: 12px; line-height: 1.45; z-index: 5;
     }
     .hud strong { color: #5eead4; font-size: 13px; }
+    .btn-camara-hud {
+      margin-top: 7px; background: rgba(45, 212, 191, 0.16); color: #5eead4;
+      border: 1px solid #2dd4bf; border-radius: 6px; padding: 5px 10px;
+      font-size: 11.5px; font-weight: 600; cursor: pointer; display: inline-block;
+    }
+    .btn-camara-hud:hover { background: rgba(45, 212, 191, 0.28); }
     #error-visor {
       display: none; position: absolute; bottom: 14px; left: 14px; right: 14px;
       background: rgba(69, 10, 10, 0.95); color: #fecaca; border: 1px solid #f87171;
       padding: 10px 14px; border-radius: 8px; font-size: 12px; z-index: 20; white-space: pre-wrap;
     }
     #panel {
-      width: 425px; flex-shrink: 0; background: #101724; border-left: 1px solid #1e293b;
+      width: 435px; flex-shrink: 0; background: #101724; border-left: 1px solid #1e293b;
       padding: 12px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; z-index: 10;
     }
     .tarjeta { background: #172133; border: 1px solid #26354d; border-radius: 10px; padding: 11px; }
@@ -72,6 +77,7 @@
       background: #0d1422; color: #94a3b8; border: 1px solid #334155;
       border-radius: 7px; padding: 7px 8px; font-size: 11.5px; font-weight: 600; cursor: pointer;
     }
+    .btn-capa.span-2 { grid-column: span 2; }
     .btn-capa.activa { background: rgba(45, 212, 191, 0.16); color: #5eead4; border-color: #2dd4bf; }
     .btn-accion { color: #e2e8f0; width: 100%; margin-top: 5px; transition: background 0.15s; }
     .btn-accion:hover { background: #1e293b; border-color: #38bdf8; }
@@ -102,9 +108,12 @@
 <body>
   <div id="visor-3d">
     <div class="hud">
-      <strong>VISAGELAB · SIMULADOR ANATÓMICO 3D</strong><br />
+      <strong>VISAGELAB · SIMULADOR ANATÓMICO Y CRANEOFACIAL 3D</strong><br />
       Arrastra para rotar · Rueda para zoom<br />
-      <span id="estado-capas">Capas activas: Esqueleto + Músculo + Grasa + Piel</span>
+      <span id="estado-capas">Capas activas: Esqueleto + Músculo + Grasa + Piel + Rasgos</span><br />
+      <button type="button" class="btn-camara-hud" id="btn-alternar-encuadre">
+        🔍 Enfocar Rostro / Cráneo (Capa 5)
+      </button>
     </div>
     <div id="error-visor"></div>
   </div>
@@ -117,6 +126,7 @@
         <button type="button" class="btn-capa activa" data-capa="musculo">2. Músculo</button>
         <button type="button" class="btn-capa activa" data-capa="grasa">3. Grasa</button>
         <button type="button" class="btn-capa activa" data-capa="piel">4. Piel</button>
+        <button type="button" class="btn-capa activa span-2" data-capa="rasgos">5. Rasgos Faciales y Estructura Craneofacial</button>
       </div>
       <label class="fila-check">
         <span>Piel translúcida (Inspección interna)</span>
@@ -201,7 +211,7 @@
     </div>
 
     <!-- ============================================================================
-    [BLOQUE 3] PANEL EXCLUSIVO DE CAPA 2 (MÚSCULO) POR GRANDES RAMAS Y SUB-RAMAS
+    [BLOQUE 3] PANEL EXCLUSIVO DE CAPA 2 (MÚSCULO)
     Función: Controles musculares interdependientes (cm <-> nivel 0-10 / 0-5).
     ============================================================================ -->
     <div class="bloque-capa" data-panel-capa="musculo">
@@ -641,14 +651,11 @@
 
     <!-- ============================================================================
     [BLOQUE 5] PANEL EXCLUSIVO DE CAPA 4 (PIEL: IMPORTACIÓN, CIELAB Y ACABADO)
-    Función: Gestiona las 2 vías de entrada (Importación desde Diagnóstico Facial
-    + Panel Manual con prioridad de refinamiento), el espectro continuo de piel,
-    espacio CIELAB (L*a*b*), subtono, estación cromática y calidad superficial.
+    Función: Controles de colorimetría CIELAB, subtono, estación y calidad de piel.
     ============================================================================ -->
     <div class="bloque-capa" data-panel-capa="piel">
       <div class="titulo-capa">Controles de Capa 4 · Piel y Colorimetría</div>
 
-      <!-- 1. DOS VÍAS DE ENTRADA: IMPORTACIÓN DE DIAGNÓSTICO FACIAL O MODO MANUAL -->
       <div class="tarjeta">
         <h3>1. Origen de Datos (Diagnóstico Facial ↔ Manual)</h3>
         <div class="badge-origen" id="badge-origen-piel">Modo Manual Activo (Listo para recibir Diagnóstico Facial)</div>
@@ -667,8 +674,7 @@
         </button>
       </div>
 
-      <!-- 2. GRAN RAMA: COLORIMETRÍA (TONO CONTINUO, CIELAB L*a*b*, SUBTONO Y ESTACIÓN) -->
-      <details class="gran-rama" open>
+      <details class="gran-rama">
         <summary>2. Colorimetría (Espectro, CIELAB, Subtono y Estación)</summary>
         <div class="sub-rama">
           <div class="sub-rama-titulo">↳ Tono Base y Espectro Continuo</div>
@@ -729,8 +735,7 @@
         </div>
       </details>
 
-      <!-- 3. GRAN RAMA: CALIDAD, ESTADO Y ACABADO SUPERFICIAL -->
-      <details class="gran-rama" open>
+      <details class="gran-rama">
         <summary>3. Calidad, Estado y Respuesta a la Luz</summary>
         <div class="sub-rama">
           <div class="control">
@@ -758,20 +763,387 @@
         </div>
       </details>
     </div>
+
+    <!-- ============================================================================
+    [BLOQUE 6] PANEL EXCLUSIVO DE CAPA 5 (RASGOS FACIALES Y ESTRUCTURA CRANEOFACIAL)
+    Función: Inventario completo de estructura craneal/ósea, proporciones globales,
+    pómulos/grasa bucal, nariz/ángulo nasolabial, ojos/párpados/cejas y labios.
+    ============================================================================ -->
+    <div class="bloque-capa" data-panel-capa="rasgos">
+      <div class="titulo-capa">Controles de Capa 5 · Rasgos y Estructura Craneofacial</div>
+
+      <!-- RAMA 1: ESTRUCTURA CRANEAL, FRENTE Y PERFIL ÓSEO -->
+      <details class="gran-rama" open>
+        <summary>1. Estructura Craneal, Frente y Perfil Óseo</summary>
+        <div class="sub-rama">
+          <div class="sub-rama-titulo">↳ Cráneo, Frente y Arco Superciliar</div>
+          <div class="control">
+            <label>Forma del Cráneo</label>
+            <select id="forma-craneo">
+              <option value="mesocefalo_perfecto" selected>Mesocefáleo perfecto</option>
+              <option value="dolicocefalo_elite">Dolicocefáleo de élite</option>
+              <option value="braquicefalo_compacto">Braquicéfalo compacto</option>
+              <option value="occipital_prominente">Occipital prominente</option>
+              <option value="mesocefalo_suave">Mesocéfalo suave</option>
+              <option value="frente_inclinada">Frente inclinada</option>
+              <option value="braquicefalo_plano">Braquicéfalo plano</option>
+              <option value="craneo_conico">Cráneo cónico</option>
+              <option value="asimetria_craneal_leve">Asimetría craneal leve</option>
+              <option value="frente_estrecha">Frente estrecha</option>
+              <option value="escafocefalia">Escafocefalia</option>
+            </select>
+          </div>
+          <div class="control">
+            <label>Categoría Inclinación de la Frente</label>
+            <select id="frente-tipo">
+              <option value="masculina_80_84" selected>Inclinación masculina definida (80°–84°)</option>
+              <option value="vertical_85_90">Verticalidad (85°–90°)</option>
+              <option value="primitiva_70_79">Pendiente primitiva ruda (70°–79°)</option>
+              <option value="convexa_90_mas">Prominencia convexa (> 90°)</option>
+            </select>
+          </div>
+          <div class="control">
+            <label>Ángulo de la Frente (°) <span class="val" id="v-frente-deg">82.0°</span></label>
+            <input type="range" id="frente-deg" min="70" max="95" step="0.5" value="82" />
+          </div>
+          <div class="control">
+            <label>Arco Superciliar</label>
+            <select id="arco-superciliar">
+              <option value="prominencia_masculina_dominante">Prominencia masculina dominante</option>
+              <option value="proyeccion_definida">Proyección definida</option>
+              <option value="estructura_armonica" selected>Estructura armónica</option>
+              <option value="transicion_suave">Transición suave</option>
+              <option value="aplanamiento_superior">Aplanamiento superior</option>
+              <option value="deficiencia_proyeccion">Deficiencia de proyección</option>
+              <option value="ausencia_estructural">Ausencia estructural</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="sub-rama">
+          <div class="sub-rama-titulo">↳ Maxilar, Mandíbula y Mentón (mm)</div>
+          <div class="control">
+            <label>Proyección del Maxilar</label>
+            <select id="proyeccion-maxilar">
+              <option value="crecimiento_anterior_optimo">Crecimiento anterior óptimo</option>
+              <option value="proyeccion_masculina_robusta">Proyección masculina robusta</option>
+              <option value="soporte_armonico" selected>Soporte armónico</option>
+              <option value="soporte_neutro">Soporte neutro</option>
+              <option value="aplanamiento_mediofacial">Aplanamiento mediofacial</option>
+              <option value="deficiencia_maxilar">Deficiencia maxilar</option>
+              <option value="retraimiento">Retraimiento</option>
+            </select>
+          </div>
+          <div class="control">
+            <label>Forma de la Mandíbula</label>
+            <select id="forma-mandibula">
+              <option value="cuadrada_angulada">Cuadrada y angulada (Gonion > 90°)</option>
+              <option value="leve_marcada">Leve marcada</option>
+              <option value="rectangular">Rectangular</option>
+              <option value="estructurada" selected>Estructurada</option>
+              <option value="redonda">Redonda</option>
+              <option value="blanda">Blanda</option>
+              <option value="retraida">Retraída</option>
+              <option value="asimetrica">Asimétrica</option>
+            </select>
+          </div>
+          <div class="control">
+            <label>Proyección de la Mandíbula</label>
+            <select id="proyeccion-mandibula">
+              <option value="ortognatismo" selected>Ortognatismo</option>
+              <option value="proyeccion_masculina_fuerte">Proyección masculina fuerte</option>
+              <option value="balanceada">Balanceada</option>
+              <option value="suave">Suave</option>
+              <option value="media_baja">Media baja</option>
+              <option value="retrognatismo_leve">Retrognatismo leve</option>
+              <option value="retrognatismo_moderado">Retrognatismo moderado</option>
+              <option value="prognatismo_leve">Prognatismo leve</option>
+              <option value="prognatismo_severo">Prognatismo severo</option>
+            </select>
+          </div>
+          <div class="control">
+            <label>Clasificación Clínica del Mentón</label>
+            <select id="menton-tipo">
+              <option value="maxoprognatismo_extremo">Maxoprognatismo extremo (> +4 mm)</option>
+              <option value="prognatismo_primitivo">Prognatismo masculino primitivo (+1 a +3 mm)</option>
+              <option value="ortognatismo" selected>Ortognatismo (0 a -1 mm)</option>
+              <option value="receso_armonico">Receso armónico estándar (-2 mm)</option>
+              <option value="retroceso_neotenico">Retroceso suave neoténico (-3 a -4 mm)</option>
+              <option value="micrognatismo_inicial">Micrognatismo inicial (-5 a -6 mm)</option>
+              <option value="retrognatismo_visible">Retrognatismo visible (-7 a -9 mm)</option>
+              <option value="perfil_pajaro">Perfil de pájaro (-9.5 mm)</option>
+              <option value="retrognatismo_cronico">Retrognatismo severo crónico (< -10 mm)</option>
+            </select>
+          </div>
+          <div class="control">
+            <label>Proyección del Mentón (mm) <span class="val" id="v-menton-mm">0.0 mm</span></label>
+            <input type="range" id="menton-mm" min="-12" max="6" step="0.5" value="0" />
+          </div>
+        </div>
+      </details>
+
+      <!-- RAMA 2: FORMA DEL ROSTRO Y PROPORCIONES GLOBALES -->
+      <details class="gran-rama" open>
+        <summary>2. Forma del Rostro y Proporciones Globales</summary>
+        <div class="sub-rama">
+          <div class="control">
+            <label>Forma del Rostro (10 Arquetipos)</label>
+            <select id="forma-rostro">
+              <option value="diamante">Diamante</option>
+              <option value="ovalada" selected>Ovalada</option>
+              <option value="cuadrada">Cuadrada</option>
+              <option value="rectangular">Rectangular</option>
+              <option value="triangulo_invertido">Triángulo invertido</option>
+              <option value="corazon">Corazón</option>
+              <option value="triangular">Triangular</option>
+              <option value="trapezoide">Trapezoide</option>
+              <option value="redonda">Redonda</option>
+              <option value="pera">Pera</option>
+            </select>
+          </div>
+          <div class="control">
+            <label>Tercio Superior (Frente %) <span class="val" id="v-tercio-sup">33.3 %</span></label>
+            <input type="range" id="tercio-sup" min="27" max="40" step="0.5" value="33.3" />
+          </div>
+          <div class="control">
+            <label>Tercio Medio (Ojos–Nariz %) <span class="val" id="v-tercio-med">33.3 %</span></label>
+            <input type="range" id="tercio-med" min="27" max="40" step="0.5" value="33.3" />
+          </div>
+          <div class="control">
+            <label>Tercio Inferior (Base Nasal–Mentón %) <span class="val" id="v-tercio-inf">33.3 %</span></label>
+            <input type="range" id="tercio-inf" min="27" max="40" step="0.5" value="33.3" />
+          </div>
+          <div class="control">
+            <label>Regla de los Quintos (Anchura %) <span class="val" id="v-quintos">100 %</span></label>
+            <input type="range" id="quintos-pct" min="86" max="116" step="1" value="100" />
+          </div>
+          <div class="control">
+            <label>Simetría Facial Global <span class="val" id="v-simetria">100 %</span></label>
+            <input type="range" id="simetria-pct" min="75" max="100" step="1" value="100" />
+          </div>
+        </div>
+      </details>
+
+      <!-- RAMA 3: PÓMULOS, MEJILLAS Y GRASA BUCAL -->
+      <details class="gran-rama">
+        <summary>3. Pómulos, Mejillas y Grasa Bucal</summary>
+        <div class="sub-rama">
+          <div class="control">
+            <label>Proyección Anterior de Pómulos</label>
+            <select id="pomulos-proyeccion">
+              <option value="proyeccion_optima">Proyección anterior óptima</option>
+              <option value="proyeccion_fuerte">Proyección fuerte (sombra marcada)</option>
+              <option value="proyeccion_armonica" selected>Proyección armónica</option>
+              <option value="proyeccion_neutra">Proyección neutra</option>
+              <option value="proyeccion_reducida">Proyección reducida</option>
+              <option value="retroceso_malar">Retroceso malar</option>
+              <option value="hipoplasia_malar">Hipoplasia malar</option>
+            </select>
+          </div>
+          <div class="control">
+            <label>Posición Vertical de Pómulos</label>
+            <select id="pomulos-vertical">
+              <option value="elevacion_alta">Elevación alta</option>
+              <option value="elevacion_superior" selected>Elevación superior</option>
+              <option value="elevacion_media">Elevación media</option>
+              <option value="baja">Baja</option>
+              <option value="elevacion_caida">Elevación caída</option>
+            </select>
+          </div>
+          <div class="control">
+            <label>Ancho Lateral de Pómulos</label>
+            <select id="pomulos-ancho">
+              <option value="ancho_robusto">Ancho robusto</option>
+              <option value="ancho_definido">Ancho definido</option>
+              <option value="proporcional" selected>Proporcional</option>
+              <option value="ancho_reducido">Ancho reducido</option>
+              <option value="estrechez_severa">Estrechez severa</option>
+            </select>
+          </div>
+          <div class="control">
+            <label>Grasa Bucal (Sincronizada con Capa 3)</label>
+            <select id="grasa-bucal">
+              <option value="excavacion_total">Excavación total (surcos marcados)</option>
+              <option value="transicion_plana_limpia">Transición plana y limpia</option>
+              <option value="transicion_neutra" selected>Transición neutra</option>
+              <option value="volumen_acumulado">Volumen acumulado</option>
+              <option value="relleno_bucal_excesivo">Relleno bucal excesivo</option>
+            </select>
+          </div>
+        </div>
+      </details>
+
+      <!-- RAMA 4: NARIZ Y ÁNGULO NASOLABIAL -->
+      <details class="gran-rama">
+        <summary>4. Nariz y Ángulo Nasolabial</summary>
+        <div class="sub-rama">
+          <div class="control">
+            <label>Forma Nasal (15 Variantes)</label>
+            <select id="forma-nariz">
+              <option value="griega" selected>Griega (recta clásica)</option>
+              <option value="romana">Romana</option>
+              <option value="respingada">Respingada</option>
+              <option value="aquilina">Aquilina</option>
+              <option value="delgada">Delgada</option>
+              <option value="boton">De botón</option>
+              <option value="curvatura_punta">Con curvatura marcada hacia la punta</option>
+              <option value="miraguano">Miraguano</option>
+              <option value="nubia">Nubia</option>
+              <option value="boxeador">De boxeador</option>
+              <option value="bulbosa">Bulbosa</option>
+              <option value="desviada">Desviada</option>
+              <option value="con_giba">Con giba</option>
+              <option value="tomate">De tomate</option>
+              <option value="carnosa">Carnosa</option>
+            </select>
+          </div>
+          <div class="control">
+            <label>Ancho Nasal</label>
+            <select id="ancho-nasal">
+              <option value="ideal" selected>Ideal (coincidente con interocular)</option>
+              <option value="delgado_definido">Delgado definido</option>
+              <option value="medio_natural">Medio natural</option>
+              <option value="etnico">Étnico</option>
+              <option value="expandido">Expandido</option>
+              <option value="base_plana">Base plana</option>
+              <option value="hipertrofico">Hipertrófico</option>
+            </select>
+          </div>
+          <div class="control">
+            <label>Categoría Ángulo Nasolabial</label>
+            <select id="nasolabial-tipo">
+              <option value="marcial_90_95" selected>Marcial (90°–95°)</option>
+              <option value="respingada_96_100">Inclinación respingada (96°–100°)</option>
+              <option value="aquilino_80_89">Ángulo caído aquilino (80°–89°)</option>
+              <option value="hiperrespingada_100_mas">Exposición hiperrespingada (> 100°)</option>
+              <option value="colapso_80_menos">Colapso nasolabial (< 80°)</option>
+            </select>
+          </div>
+          <div class="control">
+            <label>Ángulo Nasolabial (°) <span class="val" id="v-nasolabial-deg">93.0°</span></label>
+            <input type="range" id="nasolabial-deg" min="72" max="112" step="0.5" value="93" />
+          </div>
+        </div>
+      </details>
+
+      <!-- RAMA 5: OJOS, PÁRPADOS Y CEJAS -->
+      <details class="gran-rama">
+        <summary>5. Ojos, Párpados y Cejas</summary>
+        <div class="sub-rama">
+          <div class="control">
+            <label>Forma del Ojo</label>
+            <select id="forma-ojos">
+              <option value="cazador">Ojos de cazador (Hunter eyes)</option>
+              <option value="almendrados" selected>Almendrados</option>
+              <option value="escudo">Ojos de escudo</option>
+              <option value="inclinacion_neutra">Inclinación neutra</option>
+              <option value="redondos">Redondos</option>
+              <option value="profundos">Profundos</option>
+              <option value="caidos">Caídos</option>
+              <option value="presa">Ojos de presa</option>
+              <option value="saltones">Saltones</option>
+            </select>
+          </div>
+          <div class="control">
+            <label>Inclinación Cantal de los Ojos</label>
+            <select id="inclinacion-ojos">
+              <option value="positiva_marcada">Inclinación positiva marcada</option>
+              <option value="positiva_sutil" selected>Inclinación positiva sutil</option>
+              <option value="neutra">Neutra</option>
+              <option value="negativa_leve">Inclinación negativa leve</option>
+              <option value="negativa_moderada">Inclinación negativa moderada</option>
+              <option value="negativa_severa">Inclinación negativa severa</option>
+              <option value="asimetrica">Asimetría cantal</option>
+            </select>
+          </div>
+          <div class="control">
+            <label>Profundidad del Ojo</label>
+            <select id="profundidad-ojos">
+              <option value="profundidad_extrema">Profundidad extrema</option>
+              <option value="profundidad_marcada">Profundidad marcada</option>
+              <option value="estandar" selected>Estándar</option>
+              <option value="nivel_neutro">Nivel neutro</option>
+              <option value="superficial">Superficial</option>
+              <option value="proyeccion_leve">Proyección ocular leve</option>
+              <option value="proyeccion_severa">Proyección severa</option>
+            </select>
+          </div>
+          <div class="control">
+            <label>Exposición del Párpado Superior</label>
+            <select id="exposicion-parpado">
+              <option value="oculto">Párpado oculto</option>
+              <option value="minima">Exposición mínima</option>
+              <option value="moderada">Exposición moderada</option>
+              <option value="definida_almendrado" selected>Exposición definida (ojo almendrado)</option>
+              <option value="alta">Exposición alta</option>
+              <option value="excesiva">Exposición excesiva</option>
+              <option value="total">Exposición total</option>
+            </select>
+          </div>
+          <div class="control">
+            <label>Densidad de las Cejas</label>
+            <select id="densidad-cejas">
+              <option value="densas_definidas" selected>Densas y definidas</option>
+              <option value="gruesas_naturales">Gruesas naturales</option>
+              <option value="masa_media">De masa media</option>
+              <option value="pobladas_desordenadas">Pobladas desordenadas</option>
+              <option value="delgadas_finas">Delgadas o finas</option>
+              <option value="dispersas">Dispersas</option>
+              <option value="inexistentes_claras">Inexistentes o muy claras</option>
+            </select>
+          </div>
+        </div>
+      </details>
+
+      <!-- RAMA 6: LABIOS -->
+      <details class="gran-rama">
+        <summary>6. Labios (Forma y Grosor)</summary>
+        <div class="sub-rama">
+          <div class="control">
+            <label>Forma de los Labios</label>
+            <select id="forma-labios">
+              <option value="arco_cupido_definido" selected>Arco de cupido definido</option>
+              <option value="arco_cupido_plano">Arco de cupido plano</option>
+              <option value="arco_estirado">Arco estirado</option>
+              <option value="proporcionados">Proporcionados</option>
+              <option value="comisuras_elevadas">Comisuras elevadas</option>
+              <option value="ojal">De ojal</option>
+              <option value="arco_caido">Arco caído</option>
+              <option value="arco_casa">En forma de arco de casa</option>
+              <option value="asimetricos">Asimétricos</option>
+              <option value="sin_arco">Sin arco</option>
+            </select>
+          </div>
+          <div class="control">
+            <label>Grosor de los Labios</label>
+            <select id="grosor-labios">
+              <option value="proporcionado" selected>Proporcionado</option>
+              <option value="llenos_simetricos">Llenos simétricos</option>
+              <option value="grosor_medio">Grosor medio</option>
+              <option value="gruesos_dominantes">Gruesos dominantes</option>
+              <option value="delgados">Delgados</option>
+              <option value="muy_finos">Muy finos</option>
+              <option value="excesivamente_gruesos">Excesivamente gruesos</option>
+            </select>
+          </div>
+        </div>
+      </details>
+    </div>
   </aside>
 
   <!-- ============================================================================
-  [BLOQUE 6] MOTOR DE INTERDEPENDENCIA BIOMÉTRICA Y COLORIMÉTRICA (CAPAS 1 A 4)
-  Función: Conecta bidireccionalmente los controles de Esqueleto, Músculo, Grasa
-  y Piel (incluyendo CIELAB L*a*b* <-> HEX <-> Espectro Continuo y Presets de
-  Calidad Cutánea).
+  [BLOQUE 7] MOTOR DE INTERDEPENDENCIA Y ESCENA THREE.JS (CAPAS 1 A 5)
+  Función: Sincroniza bidireccionalmente los controles de las 5 capas (incluyendo
+  ángulos frontales, milímetros de mentón, ángulo nasolabial y grasa bucal <->
+  grasa facial de Capa 3) y unifica la cabeza de Capa 5 con el cuerpo de Capa 4.
   ============================================================================ -->
   <script type="module">
     import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.158.0/build/three.module.js";
-    import { crearCapaEsqueleto } from "./capa_esqueleto.js?v=9";
-    import { crearCapaMusculo } from "./capa_musculo.js?v=8";
-    import { crearCapaGrasa } from "./capa_grasa.js?v=8";
-    import { crearCapaPiel, hexToLab, labToHex } from "./capa_piel.js?v=8";
+    import { crearCapaEsqueleto } from "./capa_esqueleto.js?v=10";
+    import { crearCapaMusculo } from "./capa_musculo.js?v=10";
+    import { crearCapaGrasa } from "./capa_grasa.js?v=10";
+    import { crearCapaPiel, hexToLab, labToHex } from "./capa_piel.js?v=10";
+    import { crearCapaRasgosFaciales } from "./capa_rasgos_faciales.js?v=10";
 
     const visorEl = document.getElementById("visor-3d");
     const errorBox = document.getElementById("error-visor");
@@ -788,7 +1160,7 @@
       mostrarError(e.reason?.message || String(e.reason));
     });
 
-    const visibilidad = { esqueleto: true, musculo: true, grasa: true, piel: true };
+    const visibilidad = { esqueleto: true, musculo: true, grasa: true, piel: true, rasgos: true };
     let diagnosticoBaseGuardado = null;
 
     function sincronizarPanelesPorCapa() {
@@ -972,9 +1344,9 @@
         setVal("grasa-esp-gen", prom, 0.5);
       }
 
-      // 3. Interdependencia Colorimétrica de Capa 4: Espectro <-> HEX <-> CIELAB (L*a*b*)
+      // 3. Interdependencia Colorimétrica de Capa 4
       if (idOrigen === "piel-espectro") {
-        const t = val("piel-espectro") / 100; // 0 = oscuro profundo, 1 = muy claro
+        const t = val("piel-espectro") / 100;
         const L = 26 + t * 62;
         const a = 11 + Math.sin(t * Math.PI) * 5;
         const b = 16 + Math.sin(t * Math.PI * 0.85) * 12;
@@ -999,9 +1371,75 @@
         setVal("piel-sss", p.sss, 0.02);
       }
 
-      // Si había un diagnóstico importado y el usuario mueve un control de piel, indica ajuste manual sobre base
-      if (diagnosticoBaseGuardado && idOrigen && idOrigen.startsWith("piel-") || idOrigen === "color-piel") {
-        el("badge-origen-piel").textContent = "Diagnóstico Importado + Ajuste Fino Manual";
+      // 4. Interdependencias de Capa 5 (Frente ° <-> Categoría, Mentón mm <-> Categoría, Nasolabial ° <-> Categoría, Grasa Bucal <-> Grasa Cara Capa 3)
+      if (idOrigen === "frente-tipo") {
+        const mapaFrente = { masculina_80_84: 82, vertical_85_90: 88, primitiva_70_79: 75, convexa_90_mas: 93 };
+        setVal("frente-deg", mapaFrente[el("frente-tipo").value] ?? 82, 0.5);
+      } else if (idOrigen === "frente-deg") {
+        const g = val("frente-deg");
+        el("frente-tipo").value = g < 80 ? "primitiva_70_79" : (g <= 84.5 ? "masculina_80_84" : (g <= 90 ? "vertical_85_90" : "convexa_90_mas"));
+      }
+
+      if (idOrigen === "menton-tipo") {
+        const mapaMenton = {
+          maxoprognatismo_extremo: 5.0,
+          prognatismo_primitivo: 2.0,
+          ortognatismo: 0.0,
+          receso_armonico: -2.0,
+          retroceso_neotenico: -3.5,
+          micrognatismo_inicial: -5.5,
+          retrognatismo_visible: -8.0,
+          perfil_pajaro: -9.5,
+          retrognatismo_cronico: -11.0
+        };
+        setVal("menton-mm", mapaMenton[el("menton-tipo").value] ?? 0, 0.5);
+      } else if (idOrigen === "menton-mm") {
+        const m = val("menton-mm");
+        if (m >= 4) el("menton-tipo").value = "maxoprognatismo_extremo";
+        else if (m >= 1) el("menton-tipo").value = "prognatismo_primitivo";
+        else if (m >= -1) el("menton-tipo").value = "ortognatismo";
+        else if (m >= -2.5) el("menton-tipo").value = "receso_armonico";
+        else if (m >= -4.5) el("menton-tipo").value = "retroceso_neotenico";
+        else if (m >= -6.5) el("menton-tipo").value = "micrognatismo_inicial";
+        else if (m >= -9.0) el("menton-tipo").value = "retrognatismo_visible";
+        else if (m >= -10.0) el("menton-tipo").value = "perfil_pajaro";
+        else el("menton-tipo").value = "retrognatismo_cronico";
+      }
+
+      if (idOrigen === "nasolabial-tipo") {
+        const mapaNaso = {
+          marcial_90_95: 93,
+          respingada_96_100: 98,
+          aquilino_80_89: 85,
+          hiperrespingada_100_mas: 106,
+          colapso_80_menos: 76
+        };
+        setVal("nasolabial-deg", mapaNaso[el("nasolabial-tipo").value] ?? 93, 0.5);
+      } else if (idOrigen === "nasolabial-deg") {
+        const a = val("nasolabial-deg");
+        if (a < 80) el("nasolabial-tipo").value = "colapso_80_menos";
+        else if (a < 90) el("nasolabial-tipo").value = "aquilino_80_89";
+        else if (a <= 95.5) el("nasolabial-tipo").value = "marcial_90_95";
+        else if (a <= 100.5) el("nasolabial-tipo").value = "respingada_96_100";
+        else el("nasolabial-tipo").value = "hiperrespingada_100_mas";
+      }
+
+      if (idOrigen === "grasa-bucal") {
+        const mapaBucalACapa3 = {
+          excavacion_total: 0.5,
+          transicion_plana_limpia: 2.0,
+          transicion_neutra: 4.0,
+          volumen_acumulado: 7.5,
+          relleno_bucal_excesivo: 10.0
+        };
+        setVal("grasa-cara", mapaBucalACapa3[el("grasa-bucal").value] ?? 4.0, 0.5);
+      } else if (idOrigen === "grasa-cara") {
+        const gc = val("grasa-cara");
+        if (gc <= 1.0) el("grasa-bucal").value = "excavacion_total";
+        else if (gc <= 2.8) el("grasa-bucal").value = "transicion_plana_limpia";
+        else if (gc <= 5.5) el("grasa-bucal").value = "transicion_neutra";
+        else if (gc <= 8.5) el("grasa-bucal").value = "volumen_acumulado";
+        else el("grasa-bucal").value = "relleno_bucal_excesivo";
       }
     }
 
@@ -1103,7 +1541,6 @@
         pliegueAbdominalMm: val("plic-abdominal"),
         pliegueMusloMm: val("plic-muslo"),
 
-        // Capa 4: Piel y Colorimetría
         sexo: txt("sexo"),
         pielEspectro: val("piel-espectro"),
         colorPiel: txt("color-piel"),
@@ -1115,7 +1552,36 @@
         pielCalidad: txt("piel-calidad"),
         pielRoughness: val("piel-roughness"),
         pielPorosidad: val("piel-poros"),
-        pielSubsurface: val("piel-sss")
+        pielSubsurface: val("piel-sss"),
+
+        // Capa 5: Rasgos Faciales y Estructura Craneofacial
+        formaCraneo: txt("forma-craneo"),
+        inclinacionFrenteDeg: val("frente-deg"),
+        arcoSuperciliar: txt("arco-superciliar"),
+        proyeccionMaxilar: txt("proyeccion-maxilar"),
+        formaMandibula: txt("forma-mandibula"),
+        proyeccionMandibula: txt("proyeccion-mandibula"),
+        proyeccionMentonMm: val("menton-mm"),
+        formaRostro: txt("forma-rostro"),
+        tercioSuperiorPct: val("tercio-sup"),
+        tercioMedioPct: val("tercio-med"),
+        tercioInferiorPct: val("tercio-inf"),
+        proporcionQuintosPct: val("quintos-pct"),
+        simetriaFacialPct: val("simetria-pct"),
+        pomulosProyeccion: txt("pomulos-proyeccion"),
+        pomulosPosicionVertical: txt("pomulos-vertical"),
+        pomulosAnchoLateral: txt("pomulos-ancho"),
+        grasaBucal: txt("grasa-bucal"),
+        formaNariz: txt("forma-nariz"),
+        anchoNasal: txt("ancho-nasal"),
+        anguloNasolabialDeg: val("nasolabial-deg"),
+        formaOjos: txt("forma-ojos"),
+        inclinacionOjos: txt("inclinacion-ojos"),
+        profundidadOjos: txt("profundidad-ojos"),
+        exposicionParpado: txt("exposicion-parpado"),
+        densidadCejas: txt("densidad-cejas"),
+        formaLabios: txt("forma-labios"),
+        grosorLabios: txt("grosor-labios")
       };
     }
 
@@ -1149,6 +1615,16 @@
 
       document.getElementById("grasa-esp-general-wrap").classList.toggle("oculto", p.grasaEspaldaModo !== "general");
       document.getElementById("grasa-esp-desglosado-wrap").classList.toggle("oculto", p.grasaEspaldaModo !== "desglosado");
+
+      // Etiquetas Capa 5 (Rasgos Faciales)
+      document.getElementById("v-frente-deg").textContent = `${p.inclinacionFrenteDeg.toFixed(1)}°`;
+      document.getElementById("v-menton-mm").textContent = `${p.proyeccionMentonMm > 0 ? "+" : ""}${p.proyeccionMentonMm.toFixed(1)} mm`;
+      document.getElementById("v-tercio-sup").textContent = `${p.tercioSuperiorPct.toFixed(1)} %`;
+      document.getElementById("v-tercio-med").textContent = `${p.tercioMedioPct.toFixed(1)} %`;
+      document.getElementById("v-tercio-inf").textContent = `${p.tercioInferiorPct.toFixed(1)} %`;
+      document.getElementById("v-quintos").textContent = `${p.proporcionQuintosPct.toFixed(0)} %`;
+      document.getElementById("v-simetria").textContent = `${p.simetriaFacialPct.toFixed(0)} %`;
+      document.getElementById("v-nasolabial-deg").textContent = `${p.anguloNasolabialDeg.toFixed(1)}°`;
 
       // Etiquetas Capa 4 (Piel)
       document.getElementById("v-piel-espectro").textContent = `${p.pielEspectro.toFixed(0)} %`;
@@ -1240,17 +1716,11 @@
         `Capas activas: ${activas.length ? activas.join(" + ") : "Ninguna"}`;
     }
 
-    // ==========================================================================
-    // [BLOQUE 7] ESCENA THREE.JS, ENVOLTURA CERRADA Y PUENTE GLOBAL DE IMPORTACIÓN
-    // Función: Inicializa WebGL, coordina las 4 capas asegurando que la piel
-    // oculte las mallas internas cuando es opaca (cero perforación) y expone
-    // window.VisageLabAvatar.importarDiagnosticoFacial(datos) para Fase 1.
-    // ==========================================================================
-    const visorW = () => Math.max(300, visorEl.clientWidth || window.innerWidth - 425);
+    const visorW = () => Math.max(300, visorEl.clientWidth || window.innerWidth - 435);
     const visorH = () => Math.max(300, visorEl.clientHeight || window.innerHeight);
 
     const escena = new THREE.Scene();
-    const camara = new THREE.PerspectiveCamera(42, visorW() / visorH(), 0.1, 100);
+    const camara = new THREE.PerspectiveCamera(42, visorW() / visorH(), 0.05, 100);
     const renderizador = new THREE.WebGLRenderer({ antialias: true, alpha: true });
 
     renderizador.setSize(visorW(), visorH());
@@ -1279,17 +1749,36 @@
     const capaMusculo = crearCapaMusculo();
     const capaGrasa = crearCapaGrasa();
     const capaPiel = crearCapaPiel();
+    // La Capa 5 comparte el materialPiel de la Capa 4 para continuidad absoluta rostro-cuerpo
+    const capaRasgos = crearCapaRasgosFaciales({ materialPiel: capaPiel.materialPiel });
 
-    avatarRaiz.add(capaEsqueleto.group, capaMusculo.group, capaGrasa.group, capaPiel.group);
+    avatarRaiz.add(
+      capaEsqueleto.group,
+      capaMusculo.group,
+      capaGrasa.group,
+      capaPiel.group,
+      capaRasgos.group
+    );
 
-    const capas = { esqueleto: capaEsqueleto, musculo: capaMusculo, grasa: capaGrasa, piel: capaPiel };
+    const capas = {
+      esqueleto: capaEsqueleto,
+      musculo: capaMusculo,
+      grasa: capaGrasa,
+      piel: capaPiel,
+      rasgos: capaRasgos
+    };
+
+    // Primitivas faciales de la Capa 4 que se desactivan cuando la Cabeza Morfológica de Capa 5 está activa
+    const primitivasCabezaCapa4 = [
+      "craneoPiel", "mandibulaPiel", "mentonPiel", "narizPiel", "labiosPiel",
+      "mejillaPielIzq", "mejillaPielDer", "arcoCiliarPielIzq", "arcoCiliarPielDer"
+    ];
 
     function aplicarCambios() {
       try {
         errorBox.style.display = "none";
         const p = leerParametros();
 
-        // Actualizar siempre la matemática interna en cascada (Capa 1 -> 2 -> 3 -> 4)
         capaEsqueleto.applyAnatomyState(p);
         const contexto = { ...p, anclajes: capaEsqueleto.anclajes };
         capaMusculo.applyAnatomyState(contexto);
@@ -1297,24 +1786,32 @@
 
         const contextoPiel = { ...contexto, estadoGrasa: capaGrasa.estadoVolumetrico };
         capaPiel.applyAnatomyState(contextoPiel);
+        capaRasgos.applyAnatomyState(contextoPiel);
 
-        // Regla de Oro: Si la Capa 4 (Piel) está activa y NO está en modo translúcido,
-        // la piel actúa como envoltura exterior cerrada (oculta el renderizado interno
-        // de músculo y grasa para que jamás exista perforación visual al rotar o hacer zoom)
-        const pielOpacaActiva = visibilidad.piel && !p.translucida;
+        // Integración sin sobreposición: si la Capa 5 está visible, su malla craneofacial
+        // reemplaza las esferas básicas de cabeza de la Capa 4 manteniendo el cuello y cuerpo
+        const usarCabezaUnificadaCapa5 = visibilidad.rasgos || visibilidad.piel;
+        primitivasCabezaCapa4.forEach((nombre) => {
+          if (capaPiel.mallas[nombre]) {
+            capaPiel.mallas[nombre].visible = !usarCabezaUnificadaCapa5;
+          }
+        });
+
+        const pielOpacaActiva = (visibilidad.piel || visibilidad.rasgos) && !p.translucida;
         capaEsqueleto.group.visible = visibilidad.esqueleto && !pielOpacaActiva;
         capaMusculo.group.visible = visibilidad.musculo && !pielOpacaActiva;
         capaGrasa.group.visible = visibilidad.grasa && !pielOpacaActiva;
         capaPiel.group.visible = visibilidad.piel;
+        capaRasgos.group.visible = usarCabezaUnificadaCapa5;
       } catch (err) {
         mostrarError(err.message || String(err));
       }
     }
 
-    // Puente listo para recibir los datos cuando termines el módulo de Análisis Facial
     function recibirDiagnosticoFacialExterno(datos = {}) {
       const aplicado = capaPiel.importarDiagnosticoFacial(datos);
-      diagnosticoBaseGuardado = { ...aplicado };
+      capaRasgos.importarRasgosFaciales(datos);
+      diagnosticoBaseGuardado = { ...aplicado, ...datos };
 
       document.getElementById("color-piel").value = aplicado.colorPiel;
       document.getElementById("piel-l").value = aplicado.pielL;
@@ -1334,9 +1831,12 @@
       aplicarCambios();
     }
 
-    // Expone la API global para integrarla con tu análisis facial y corporal en una línea
     window.VisageLabAvatar = {
       importarDiagnosticoFacial: recibirDiagnosticoFacialExterno,
+      importarRasgosFaciales: (datos) => {
+        capaRasgos.importarRasgosFaciales(datos);
+        aplicarCambios();
+      },
       leerParametros,
       capas
     };
@@ -1356,6 +1856,36 @@
       if (diagnosticoBaseGuardado) {
         recibirDiagnosticoFacialExterno(diagnosticoBaseGuardado);
       }
+    });
+
+    // Control de Cámara (Alterna entre Vista Cuerpo Completo y Primer Plano de Rostro/Cráneo)
+    let arrastrando = false, prevX = 0, prevY = 0, rotY = 0, rotX = 0.08, distancia = 3.1;
+    let yObjetivo = 0.92;
+    let modoRostro = false;
+
+    function actualizarCamara() {
+      camara.position.x = distancia * Math.sin(rotY) * Math.cos(rotX);
+      camara.position.y = yObjetivo + distancia * Math.sin(rotX);
+      camara.position.z = distancia * Math.cos(rotY) * Math.cos(rotX);
+      camara.lookAt(0, yObjetivo, 0);
+    }
+
+    const btnEncuadre = document.getElementById("btn-alternar-encuadre");
+    btnEncuadre.addEventListener("click", () => {
+      modoRostro = !modoRostro;
+      const escalaAltura = (parseFloat(document.getElementById("estatura").value) || 175) / 175;
+      if (modoRostro) {
+        yObjetivo = 1.54 * escalaAltura;
+        distancia = 0.62;
+        rotX = 0.04;
+        btnEncuadre.textContent = "🧍 Volver a Vista Cuerpo Completo";
+      } else {
+        yObjetivo = 0.92 * escalaAltura;
+        distancia = 3.1;
+        rotX = 0.08;
+        btnEncuadre.textContent = "🔍 Enfocar Rostro / Cráneo (Capa 5)";
+      }
+      actualizarCamara();
     });
 
     document.querySelectorAll(".btn-capa").forEach((btn) => {
@@ -1378,16 +1908,6 @@
       el.addEventListener("change", onChange);
     });
 
-    let arrastrando = false, prevX = 0, prevY = 0, rotY = 0, rotX = 0.12, distancia = 3.1;
-
-    function actualizarCamara() {
-      const yObjetivo = 0.92;
-      camara.position.x = distancia * Math.sin(rotY) * Math.cos(rotX);
-      camara.position.y = yObjetivo + distancia * Math.sin(rotX);
-      camara.position.z = distancia * Math.cos(rotY) * Math.cos(rotX);
-      camara.lookAt(0, yObjetivo, 0);
-    }
-
     renderizador.domElement.addEventListener("pointerdown", (e) => {
       arrastrando = true; prevX = e.clientX; prevY = e.clientY;
     });
@@ -1402,7 +1922,7 @@
 
     renderizador.domElement.addEventListener("wheel", (e) => {
       e.preventDefault();
-      distancia = THREE.MathUtils.clamp(distancia + e.deltaY * 0.0018, 1.0, 6.0);
+      distancia = THREE.MathUtils.clamp(distancia + e.deltaY * 0.0015, 0.35, 6.0);
       actualizarCamara();
     }, { passive: false });
 
