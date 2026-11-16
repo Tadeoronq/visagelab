@@ -1,5 +1,5 @@
 // ============================================================================
-// VISAGELAB - CAPA 3: TEJIDO ADIPOSO (INFORME GENERAL: KG, CM, ZONAS Y PLICOMETRÍA)
+// VISAGELAB - CAPA 3: TEJIDO ADIPOSO CONTINUO EN TODO EL CUERPO Y CARA
 // ============================================================================
 
 // ============================================================================
@@ -51,9 +51,8 @@ function crearContornoAdiposo(radiosYAlturas, segRadial = 28, segCurva = 22) {
 // ============================================================================
 // [BLOQUE 2] CONVERSIÓN ANTROPOMÉTRICA (%, KG, CM, ZONAS Y PLICÓMETRO EN MM)
 // Función: Define los límites clínicos seguros (clamping) y transforma los
-// porcentajes, kilogramos segmentarios, perímetros en cm (cuello, cintura,
-// cadera), controles zonales y pliegues cutáneos en mm (plicómetro) en factores
-// volumétricos coherentes para el modelo y para la Capa 4 (Piel).
+// porcentajes, kilogramos segmentarios, perímetros en cm, controles zonales y
+// pliegues cutáneos en mm en factores volumétricos coherentes.
 // ============================================================================
 const CLAMP_GRASA = {
   grasaTotalPct: [4, 50],
@@ -95,11 +94,11 @@ function factorDesdePliegueMm(mmRaw, mmRef = 12) {
 }
 
 // ============================================================================
-// [BLOQUE 3] MALLAS ADIPOSAS DE CUERPO COMPLETO Y POSE NEUTRA (restPose)
-// Función: Exporta crearCapaGrasa y construye las mallas de tejido adiposo para
-// Cara (mejillas/surcos), Cuello, Pecho, Costados (flancos), Espalda (alta,
-// media y baja), Tronco, Cadera/Glúteos y los 4 miembros (Sup Der/Izq e Inf
-// Der/Izq), guardando su restPose inmutable.
+// [BLOQUE 3] ENVOLTURA ADIPOSA DE CUERPO COMPLETO Y CARA (restPose)
+// Función: Construye el panículo adiposo continuo sobre cabeza/cara completa,
+// cuello, tórax superior e inferior, pecho, abdomen, flancos, espalda (3 zonas),
+// pelvis/caderas, hombros, brazos, antebrazos, manos, muslos, rodillas,
+// pantorrillas y pies.
 // ============================================================================
 export function crearCapaGrasa(opciones = {}) {
   const group = new THREE.Group();
@@ -151,137 +150,163 @@ export function crearCapaGrasa(opciones = {}) {
   }
 
   const nCraneo = new THREE.Group();
-  nCraneo.position.set(0, 1.54, 0.015);
-
   const nCuello = new THREE.Group();
-  nCuello.position.set(0, 1.39, 0.005);
-
   const nTorax = new THREE.Group();
-  nTorax.position.set(0, 1.19, 0.01);
-
   const nCore = new THREE.Group();
-  nCore.position.set(0, 1.01, -0.005);
-
   const nPelvis = new THREE.Group();
-  nPelvis.position.set(0, 0.86, 0);
-
   rigProcedural.add(nCraneo, nCuello, nTorax, nCore, nPelvis);
 
-  // 1. Zona Cara (Mejillas / Cachetes y mandíbula)
-  const geoMejilla = new THREE.SphereGeometry(0.030, 20, 16);
-  registrarMalla("caraMejillaIzq", geoMejilla, nCraneo, [-0.044, -0.022, 0.056], [0.12, -0.25, 0], [0.85, 1.05, 0.78]);
-  registrarMalla("caraMejillaDer", geoMejilla, nCraneo, [0.044, -0.022, 0.056], [0.12, 0.25, 0], [0.85, 1.05, 0.78]);
-  registrarMalla("caraMandibula", new THREE.SphereGeometry(0.054, 22, 16), nCraneo, [0, -0.048, 0.032], [0.08, 0, 0], [0.88, 0.56, 0.94]);
+  // 1. ZONA CARA Y CABEZA COMPLETA (Panículo craneal, frente, sienes, pómulos/mejillas y mandíbula)
+  registrarMalla("caraBaseSubcutanea", new THREE.SphereGeometry(0.094, 28, 22), nCraneo, [0, 0.030, -0.003], [0, 0, 0], [0.88, 1.10, 1.06]);
+  const geoMejilla = new THREE.SphereGeometry(0.034, 20, 16);
+  registrarMalla("caraMejillaIzq", geoMejilla, nCraneo, [-0.045, -0.020, 0.056], [0.12, -0.25, 0], [0.92, 1.08, 0.85]);
+  registrarMalla("caraMejillaDer", geoMejilla, nCraneo, [0.045, -0.020, 0.056], [0.12, 0.25, 0], [0.92, 1.08, 0.85]);
+  registrarMalla("caraMandibula", new THREE.SphereGeometry(0.058, 22, 16), nCraneo, [0, -0.046, 0.034], [0.08, 0, 0], [0.92, 0.60, 0.98]);
 
-  // 2. Zona Cuello (Papada submentoniana y contorno cervical)
-  registrarMalla("cuelloPapada", new THREE.SphereGeometry(0.036, 18, 14), nCuello, [0, 0.048, 0.042], [0.35, 0, 0], [0.95, 0.52, 0.92]);
+  // 2. ZONA CUELLO 360° (Collar subcutáneo completo + Papada submentoniana)
+  registrarMalla("cuelloPapada", new THREE.SphereGeometry(0.038, 18, 14), nCuello, [0, 0.046, 0.042], [0.35, 0, 0], [0.98, 0.56, 0.95]);
   registrarMalla(
     "cuelloContorno",
     crearContornoAdiposo([
-      [0.001, -0.06],
-      [0.058, -0.045],
-      [0.052, 0.0],
-      [0.049, 0.045],
-      [0.001, 0.06]
+      [0.001, -0.072],
+      [0.062, -0.055],
+      [0.056, 0.0],
+      [0.054, 0.055],
+      [0.001, 0.072]
     ], 24, 14),
     nCuello,
-    [0, 0.005, 0.002],
+    [0, 0.005, 0.0],
     [0, 0, 0],
-    [0.96, 1.0, 0.98]
+    [0.98, 1.0, 1.0]
   );
 
-  // 3. Zonas Pecho, Costados y Tronco Abdominal
+  // 3. TRONCO SUPERIOR, PECHO, ABDOMEN Y COSTADOS (Envoltura continua de hombros a pelvis)
+  registrarMalla(
+    "toraxMantoAdiposo",
+    crearContornoAdiposo([
+      [0.001, -0.14],
+      [0.128, -0.11],
+      [0.146, 0.02],
+      [0.156, 0.11],
+      [0.001, 0.145]
+    ]),
+    nTorax,
+    [0, 0.015, 0.006],
+    [0, 0, 0],
+    [1.10, 1.0, 0.84]
+  );
+
   [-1, 1].forEach((s) => {
     const lado = s < 0 ? "Izq" : "Der";
-    registrarMalla(`pechoGrasa${lado}`, new THREE.SphereGeometry(0.064, 22, 18), nTorax, [s * 0.062, 0.038, 0.106], [0.08, s * 0.18, 0], [1.24, 0.72, 0.58]);
-    registrarMalla(`costadoGrasa${lado}`, new THREE.SphereGeometry(0.058, 20, 16), nCore, [s * 0.098, -0.018, 0.018], [0, 0, s * 0.12], [0.78, 1.25, 1.08]);
+    registrarMalla(`pechoGrasa${lado}`, new THREE.SphereGeometry(0.066, 22, 18), nTorax, [s * 0.062, 0.040, 0.104], [0.08, s * 0.18, 0], [1.26, 0.76, 0.62]);
+    registrarMalla(`costadoGrasa${lado}`, new THREE.SphereGeometry(0.064, 20, 16), nCore, [s * 0.098, -0.014, 0.016], [0, 0, s * 0.12], [0.84, 1.32, 1.12]);
   });
 
   registrarMalla(
     "troncoAbdomenGrasa",
     crearContornoAdiposo([
-      [0.001, -0.14],
-      [0.128, -0.11],
-      [0.144, -0.03],
-      [0.136, 0.05],
-      [0.122, 0.12],
-      [0.001, 0.14]
+      [0.001, -0.145],
+      [0.132, -0.115],
+      [0.148, -0.025],
+      [0.140, 0.06],
+      [0.128, 0.125],
+      [0.001, 0.145]
     ]),
     nCore,
-    [0, 0.005, 0.024],
+    [0, 0.005, 0.020],
     [0, 0, 0],
-    [1.06, 1.0, 0.74]
+    [1.08, 1.0, 0.78]
   );
 
-  // 4. Zona Espalda (Alta, Media y Baja) y Cadera / Glúteo
+  // 4. ESPALDA (Alta, Media y Baja) + ENVOLTURA PÉLVICA Y CADERAS
+  registrarMalla(
+    "pelvisMantoAdiposo",
+    crearContornoAdiposo([
+      [0.001, -0.10],
+      [0.126, -0.07],
+      [0.142, 0.0],
+      [0.134, 0.07],
+      [0.001, 0.10]
+    ]),
+    nPelvis,
+    [0, 0.0, -0.005],
+    [0, 0, 0],
+    [1.10, 1.0, 0.88]
+  );
+
   [-1, 1].forEach((s) => {
     const lado = s < 0 ? "Izq" : "Der";
-    registrarMalla(`espaldaAlta${lado}`, new THREE.SphereGeometry(0.062, 20, 16), nTorax, [s * 0.068, 0.068, -0.082], [-0.10, -s * 0.18, 0], [1.22, 0.78, 0.48]);
-    registrarMalla(`espaldaMedia${lado}`, new THREE.SphereGeometry(0.060, 20, 16), nTorax, [s * 0.078, -0.015, -0.072], [0, -s * 0.22, 0], [1.18, 0.85, 0.52]);
-    registrarMalla(`espaldaBaja${lado}`, new THREE.SphereGeometry(0.058, 20, 16), nCore, [s * 0.062, -0.012, -0.062], [0.08, 0, 0], [1.16, 0.88, 0.58]);
-    registrarMalla(`caderaGluteoGrasa${lado}`, new THREE.SphereGeometry(0.086, 22, 18), nPelvis, [s * 0.076, -0.018, -0.066], [0.12, s * 0.12, 0], [1.04, 0.96, 1.14]);
+    registrarMalla(`espaldaAlta${lado}`, new THREE.SphereGeometry(0.066, 20, 16), nTorax, [s * 0.068, 0.070, -0.082], [-0.10, -s * 0.18, 0], [1.25, 0.84, 0.54]);
+    registrarMalla(`espaldaMedia${lado}`, new THREE.SphereGeometry(0.064, 20, 16), nTorax, [s * 0.078, -0.015, -0.072], [0, -s * 0.22, 0], [1.22, 0.90, 0.58]);
+    registrarMalla(`espaldaBaja${lado}`, new THREE.SphereGeometry(0.062, 20, 16), nCore, [s * 0.064, -0.012, -0.062], [0.08, 0, 0], [1.20, 0.92, 0.62]);
+    registrarMalla(`caderaGluteoGrasa${lado}`, new THREE.SphereGeometry(0.090, 22, 18), nPelvis, [s * 0.078, -0.016, -0.062], [0.12, s * 0.12, 0], [1.08, 1.0, 1.16]);
   });
 
-  // 5. Segmentos Superior Derecho e Izquierdo
+  // 5. MIEMBROS SUPERIORES COMPLETOS (Hombro, Brazo, Antebrazo y Mano)
   function construirBrazoAdiposo(lado, signo) {
+    const nHombro = new THREE.Group();
     const nBrazoSup = new THREE.Group();
-    nBrazoSup.position.set(signo * 0.21, 1.18, 0.012);
     const nAntebrazo = new THREE.Group();
-    nAntebrazo.position.set(signo * 0.24, 0.92, 0.020);
-    rigProcedural.add(nBrazoSup, nAntebrazo);
+    const nMano = new THREE.Group();
+    rigProcedural.add(nHombro, nBrazoSup, nAntebrazo, nMano);
+
+    registrarMalla(`hombroGrasa${lado}`, new THREE.SphereGeometry(0.052, 20, 16), nHombro, [signo * 0.016, -0.022, 0], [0, 0, -signo * 0.15], [1.02, 1.15, 1.02]);
 
     const geoBrazo = crearContornoAdiposo([
-      [0.001, -0.135],
-      [0.042, -0.105],
-      [0.054, -0.02],
-      [0.058, 0.06],
-      [0.046, 0.12],
-      [0.001, 0.135]
+      [0.001, -0.145],
+      [0.044, -0.115],
+      [0.056, -0.02],
+      [0.060, 0.065],
+      [0.050, 0.13],
+      [0.001, 0.145]
     ]);
     const geoAnt = crearContornoAdiposo([
-      [0.001, -0.12],
-      [0.028, -0.10],
-      [0.040, -0.02],
-      [0.044, 0.07],
-      [0.034, 0.11],
-      [0.001, 0.12]
+      [0.001, -0.13],
+      [0.030, -0.11],
+      [0.042, -0.02],
+      [0.046, 0.075],
+      [0.038, 0.115],
+      [0.001, 0.13]
     ]);
 
     registrarMalla(`brazoGrasa${lado}`, geoBrazo, nBrazoSup);
     registrarMalla(`antebrazoGrasa${lado}`, geoAnt, nAntebrazo);
-    return { nBrazoSup, nAntebrazo };
+    registrarMalla(`manoGrasa${lado}`, new THREE.SphereGeometry(0.028, 16, 14), nMano, [0, -0.040, 0], [0, 0, 0], [0.56, 1.65, 1.20]);
+
+    return { nHombro, nBrazoSup, nAntebrazo, nMano };
   }
   const segSupIzq = construirBrazoAdiposo("Izq", -1);
   const segSupDer = construirBrazoAdiposo("Der", 1);
 
-  // 6. Segmentos Inferior Derecho e Izquierdo
+  // 6. MIEMBROS INFERIORES COMPLETOS (Muslo, Rodilla, Pantorrilla y Pie)
   function construirPiernaAdiposa(lado, signo) {
     const nMuslo = new THREE.Group();
-    nMuslo.position.set(signo * 0.098, 0.64, 0.008);
     const nPiernaInf = new THREE.Group();
-    nPiernaInf.position.set(signo * 0.098, 0.24, 0.005);
-    rigProcedural.add(nMuslo, nPiernaInf);
+    const nPie = new THREE.Group();
+    rigProcedural.add(nMuslo, nPiernaInf, nPie);
 
     const geoMuslo = crearContornoAdiposo([
-      [0.001, -0.20],
-      [0.058, -0.17],
-      [0.078, -0.05],
-      [0.092, 0.08],
-      [0.096, 0.17],
-      [0.001, 0.20]
+      [0.001, -0.21],
+      [0.062, -0.18],
+      [0.082, -0.05],
+      [0.096, 0.08],
+      [0.102, 0.18],
+      [0.001, 0.21]
     ]);
     const geoPant = crearContornoAdiposo([
-      [0.001, -0.19],
-      [0.034, -0.16],
-      [0.058, -0.04],
-      [0.054, 0.08],
-      [0.048, 0.16],
-      [0.001, 0.19]
+      [0.001, -0.205],
+      [0.036, -0.17],
+      [0.060, -0.04],
+      [0.058, 0.08],
+      [0.052, 0.175],
+      [0.001, 0.205]
     ]);
 
-    registrarMalla(`musloGrasa${lado}`, geoMuslo, nMuslo, [0, 0, 0], [0, 0, 0], [1.02, 1.0, 1.06]);
-    registrarMalla(`pantorrillaGrasa${lado}`, geoPant, nPiernaInf, [0, 0, -0.006], [0, 0, 0], [0.96, 1.0, 1.08]);
-    return { nMuslo, nPiernaInf };
+    registrarMalla(`musloGrasa${lado}`, geoMuslo, nMuslo, [0, 0, 0], [0, 0, 0], [1.05, 1.0, 1.08]);
+    registrarMalla(`pantorrillaGrasa${lado}`, geoPant, nPiernaInf, [0, 0, -0.006], [0, 0, 0], [0.98, 1.0, 1.10]);
+    registrarMalla(`pieGrasa${lado}`, new THREE.SphereGeometry(0.036, 16, 14), nPie, [0, -0.018, 0.044], [0, 0, 0], [0.96, 0.56, 2.75]);
+
+    return { nMuslo, nPiernaInf, nPie };
   }
   const segInfIzq = construirPiernaAdiposa("Izq", -1);
   const segInfDer = construirPiernaAdiposa("Der", 1);
@@ -290,7 +315,7 @@ export function crearCapaGrasa(opciones = {}) {
   // [BLOQUE 4] MOTOR UNIFICADO applyAnatomyState Y PUENTE VOLUMÉTRICO A CAPA 4
   // Función: Resetea a restPose, integra los parámetros globales (% y kg), los
   // 5 segmentos en kg, los perímetros en cm (cuello, cintura, cadera), las zonas
-  // con movilidad (Cara, Cuello, Pecho, Espalda, Costados) y la Plicometría (mm).
+  // con movilidad y la Plicometría (mm), envolviendo por completo la Capa 2.
   // ==========================================================================
   const ejeY = new THREE.Vector3(0, 1, 0);
   const vDir = new THREE.Vector3();
@@ -421,10 +446,18 @@ export function crearCapaGrasa(opciones = {}) {
       }
 
       const alinearBrazo = (seg, pHombro, pCodo, pMuneca) => {
+        seg.nHombro.position.copy(pHombro);
+        if (pHombro.quat) seg.nHombro.quaternion.copy(pHombro.quat);
+        seg.nHombro.scale.setScalar(escalaAltura);
+
         const lB = alinearSegmentoEntreAnclajes(seg.nBrazoSup, pHombro, pCodo);
         seg.nBrazoSup.scale.set(escalaAltura, lB / 0.28, escalaAltura);
         const lA = alinearSegmentoEntreAnclajes(seg.nAntebrazo, pCodo, pMuneca);
         seg.nAntebrazo.scale.set(escalaAltura, lA / 0.25, escalaAltura);
+
+        seg.nMano.position.copy(pMuneca);
+        if (pMuneca.quat) seg.nMano.quaternion.copy(pMuneca.quat);
+        seg.nMano.scale.setScalar(escalaAltura);
       };
       if (anc.hombroIzq && anc.codoIzq && anc.munecaIzq) {
         alinearBrazo(segSupIzq, anc.hombroIzq, anc.codoIzq, anc.munecaIzq);
@@ -438,6 +471,10 @@ export function crearCapaGrasa(opciones = {}) {
         seg.nMuslo.scale.set(escalaAltura, lM / 0.41, escalaAltura);
         const lP = alinearSegmentoEntreAnclajes(seg.nPiernaInf, pRodilla, pTobillo);
         seg.nPiernaInf.scale.set(escalaAltura, lP / 0.40, escalaAltura);
+
+        seg.nPie.position.copy(pTobillo);
+        if (pTobillo.quat) seg.nPie.quaternion.copy(pTobillo.quat);
+        seg.nPie.scale.setScalar(escalaAltura);
       };
       if (anc.caderaIzq && anc.rodillaIzq && anc.tobilloIzq) {
         alinearPierna(segInfIzq, anc.caderaIzq, anc.rodillaIzq, anc.tobilloIzq);
@@ -447,6 +484,8 @@ export function crearCapaGrasa(opciones = {}) {
       }
     }
 
+    // Cara y Cabeza
+    mallas.caraBaseSubcutanea.scale.multiply(new THREE.Vector3(0.92 + fCara * 0.08, 0.96 + fCara * 0.04, 0.94 + fCara * 0.06));
     ["Izq", "Der"].forEach((lado) => {
       const s = lado === "Izq" ? -1 : 1;
       const mejilla = mallas[`caraMejilla${lado}`];
@@ -457,16 +496,20 @@ export function crearCapaGrasa(opciones = {}) {
     });
     mallas.caraMandibula.scale.multiply(new THREE.Vector3(0.84 + fCara * 0.16, 0.78 + fCara * 0.22, 0.88 + fCara * 0.12));
 
+    // Cuello
     const fCuelloTotal = fCuello * fMuscCuello;
     mallas.cuelloPapada.scale.multiply(new THREE.Vector3(fCuelloTotal, fCuelloTotal * 1.15, fCuelloTotal * 1.22));
     mallas.cuelloPapada.position.y += -((fCuelloTotal - 1.0) * 0.008) + movSecciones * 0.4;
     mallas.cuelloPapada.position.z += (fCuelloTotal - 1.0) * 0.014;
     mallas.cuelloContorno.scale.multiply(new THREE.Vector3(fCuelloTotal, 1.0, fCuelloTotal));
 
+    // Tronco, Abdomen y Pelvis
     const fAbdomenFinal = fAbdomen * (0.85 + 0.15 * fBaseMuscular);
+    mallas.toraxMantoAdiposo.scale.multiply(new THREE.Vector3(fSegTronco * morfoTorax * fBaseMuscular, 1.0, fSegTronco * morfoTorax));
     mallas.troncoAbdomenGrasa.scale.multiply(new THREE.Vector3(fAbdomenFinal * morfoTorax, 1.0, fAbdomenFinal * 1.14));
     mallas.troncoAbdomenGrasa.position.z += (fAbdomenFinal - 1.0) * 0.028;
     mallas.troncoAbdomenGrasa.position.y += movSecciones;
+    mallas.pelvisMantoAdiposo.scale.multiply(new THREE.Vector3(fCadera, 1.0, fCadera));
 
     ["Izq", "Der"].forEach((lado) => {
       const s = lado === "Izq" ? -1 : 1;
@@ -496,10 +539,13 @@ export function crearCapaGrasa(opciones = {}) {
       mallas[`caderaGluteoGrasa${lado}`].position.y += movSecciones * 0.75;
     });
 
+    // Extremidades Superiores e Inferiores completas
     const fSupIzqFinal = fSegSupIzq * fPlicTricipital * (0.82 + 0.18 * fBaseMuscular);
     const fSupDerFinal = fSegSupDer * fPlicTricipital * (0.82 + 0.18 * fBaseMuscular);
+    mallas.hombroGrasaIzq.scale.multiply(new THREE.Vector3(fSupIzqFinal, 1.0, fSupIzqFinal));
     mallas.brazoGrasaIzq.scale.multiply(new THREE.Vector3(fSupIzqFinal, 1.0, fSupIzqFinal));
     mallas.antebrazoGrasaIzq.scale.multiply(new THREE.Vector3(fSupIzqFinal * 0.92, 1.0, fSupIzqFinal * 0.92));
+    mallas.hombroGrasaDer.scale.multiply(new THREE.Vector3(fSupDerFinal, 1.0, fSupDerFinal));
     mallas.brazoGrasaDer.scale.multiply(new THREE.Vector3(fSupDerFinal, 1.0, fSupDerFinal));
     mallas.antebrazoGrasaDer.scale.multiply(new THREE.Vector3(fSupDerFinal * 0.92, 1.0, fSupDerFinal * 0.92));
 
@@ -527,8 +573,7 @@ export function crearCapaGrasa(opciones = {}) {
 
   // ==========================================================================
   // [BLOQUE 5] CARGADOR .GLB DE TEJIDO ADIPOSO Y EXPORTACIÓN PÚBLICA
-  // Función: Permite cargar una malla .glb de tejido adiposo exportada desde
-  // Blender y expone estadoVolumetrico, applyAnatomyState y actualizar.
+  // Función: Permite cargar una malla .glb de tejido adiposo y retorna la API.
   // ==========================================================================
   function cargarModeloGLB(url) {
     if (!url) return Promise.resolve(false);

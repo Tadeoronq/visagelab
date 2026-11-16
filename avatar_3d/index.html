@@ -3,12 +3,12 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>VisageLab - Visor Avatar 3D (Capas 1, 2, 3 y 4)</title>
+  <title>VisageLab - Visor Avatar 3D (Interdependencia Biométrica)</title>
 
   <!-- ============================================================================
   [BLOQUE 1] IMPORT MAP DE THREE.JS Y ESTILOS CSS DE RAMAS JERÁRQUICAS
-  Función: Resuelve el especificador "three" requerido internamente por GLTFLoader
-  y estiliza el visor 3D con un único panel lateral derecho desplazable.
+  Función: Resuelve el especificador "three" requerido por GLTFLoader y estiliza
+  el visor 3D con un único panel lateral derecho desplazable.
   ============================================================================ -->
   <script type="importmap">
     {
@@ -100,7 +100,6 @@
     <div id="error-visor"></div>
   </div>
 
-  <!-- UN ÚNICO ASIDE #panel QUE CONTIENE LAS TARJETAS DE TODAS LAS CAPAS -->
   <aside id="panel">
     <div class="tarjeta">
       <h3>Visibilidad de Capas (Filtra el Panel)</h3>
@@ -194,7 +193,7 @@
 
     <!-- ============================================================================
     [BLOQUE 3] PANEL EXCLUSIVO DE CAPA 2 (MÚSCULO) POR GRANDES RAMAS Y SUB-RAMAS
-    Función: Controles musculares por Grandes Ramas y Sub-ramas (0-10, 0-5 y cm).
+    Función: Controles musculares interdependientes (cm <-> nivel 0-10 / 0-5).
     ============================================================================ -->
     <div class="bloque-capa" data-panel-capa="musculo">
       <div class="titulo-capa">Controles de Capa 2 · Sistema Muscular</div>
@@ -225,7 +224,7 @@
           </select>
         </div>
         <div class="sub-rama" id="delt-caja-general">
-          <div class="sub-rama-titulo">Deltoide en General</div>
+          <div class="sub-rama-titulo">Deltoide en General (Sincronizado cm ↔ Nivel)</div>
           <select id="deltoides-unidad">
             <option value="nivel" selected>Por Nivel de Desarrollo (0 a 10)</option>
             <option value="cm">Por Centímetros (Contorno hasta 200 cm)</option>
@@ -266,7 +265,7 @@
           </select>
         </div>
         <div class="sub-rama" id="brazo-caja-general">
-          <div class="sub-rama-titulo">Brazo en General (Bíceps + Tríceps)</div>
+          <div class="sub-rama-titulo">Brazo en General (Sincronizado cm ↔ Nivel)</div>
           <select id="brazo-unidad">
             <option value="nivel" selected>Por Nivel de Desarrollo (0 a 10)</option>
             <option value="cm">Por Centímetros (Brazo en "L" hasta 75 cm)</option>
@@ -292,7 +291,7 @@
           </div>
         </div>
         <div class="sub-rama">
-          <div class="sub-rama-titulo">↳ Sub-rama: Antebrazo</div>
+          <div class="sub-rama-titulo">↳ Sub-rama: Antebrazo (Sincronizado cm ↔ Nivel)</div>
           <select id="antebrazo-unidad">
             <option value="nivel" selected>Por Nivel de Desarrollo (0 a 10)</option>
             <option value="cm">Por Centímetros (cm)</option>
@@ -326,7 +325,7 @@
           </select>
         </div>
         <div class="sub-rama" id="pecho-caja-general">
-          <div class="sub-rama-titulo">Pecho en General</div>
+          <div class="sub-rama-titulo">Pecho en General (Sincronizado cm ↔ Nivel)</div>
           <select id="pecho-unidad">
             <option value="nivel" selected>Por Nivel de Desarrollo (0 a 10)</option>
             <option value="cm">Por Centímetros (Contorno a altura de pezones)</option>
@@ -432,7 +431,7 @@
           </div>
         </div>
         <div class="sub-rama">
-          <div class="sub-rama-titulo">↳ Sub-rama: Muslos e Isquiotibiales</div>
+          <div class="sub-rama-titulo">↳ Sub-rama: Muslos e Isquiotibiales (Sincronizado cm ↔ Nivel)</div>
           <select id="muslo-modo">
             <option value="general" selected>Muslo en General</option>
             <option value="desglosado">Desglosado (Cuádriceps e Isquiotibiales)</option>
@@ -474,14 +473,13 @@
 
     <!-- ============================================================================
     [BLOQUE 4] PANEL EXCLUSIVO DE CAPA 3 (INFORME GENERAL DE GRASA)
-    Función: Controles de grasa dentro del mismo aside #panel (Global %/kg,
-    5 segmentos en kg, medidas en cm, zonas con movilidad y Plicómetro en mm).
+    Función: Controles de grasa interdependientes (% <-> kg <-> 5 segmentos).
     ============================================================================ -->
     <div class="bloque-capa" data-panel-capa="grasa">
       <div class="titulo-capa">Controles de Capa 3 · Tejido Adiposo (Grasa)</div>
 
       <div class="tarjeta">
-        <h3>1. Parámetros Globales de Grasa (% y kg)</h3>
+        <h3>1. Parámetros Globales de Grasa (% ↔ kg Sincronizados)</h3>
         <div class="control">
           <label>Modo Global (InBody / Bioimpedancia)</label>
           <select id="grasa-global-unidad">
@@ -503,10 +501,10 @@
       <details class="gran-rama" open>
         <summary>2. Grasas Segmentarias (en Kilogramos kg)</summary>
         <div class="sub-rama">
-          <div class="sub-rama-titulo">5 Segmentos Corporales (kg)</div>
+          <div class="sub-rama-titulo">5 Segmentos Corporales (Suma = Grasa Total kg)</div>
           <div class="control">
-            <label>1. Grasa del Tronco (kg) <span class="val" id="v-grasa-tronco-kg">7.0 kg</span></label>
-            <input type="range" id="grasa-tronco-kg" min="1.2" max="32" step="0.2" value="7.0" />
+            <label>1. Grasa del Tronco (kg) <span class="val" id="v-grasa-tronco-kg">7.1 kg</span></label>
+            <input type="range" id="grasa-tronco-kg" min="1.2" max="32" step="0.1" value="7.1" />
           </div>
           <div class="control">
             <label>2. Grasa Superior Derecha (kg) <span class="val" id="v-grasa-sup-der-kg">0.9 kg</span></label>
@@ -634,9 +632,10 @@
   </aside>
 
   <!-- ============================================================================
-  [BLOQUE 5] LECTURA DE CONTROLES Y FILTRADO EXCLUSIVO POR CAPA ACTIVA
-  Función: Recopila todos los valores del DOM, filtra el panel según los botones
-  de capas encendidos y actualiza las etiquetas numéricas.
+  [BLOQUE 5] MOTOR DE INTERDEPENDENCIA FISIOLÓGICA Y LECTURA DE PARÁMETROS
+  Función: Conecta bidireccionalmente los controles:
+  - Grasa (kg) <-> Grasa (%) <-> 5 Segmentos (kg) <-> Músculo Global (kg).
+  - Centímetros (cm) <-> Nivel de Desarrollo (0-10) <-> Sub-ramas musculares.
   ============================================================================ -->
   <script>
     const visorEl = document.getElementById("visor-3d");
@@ -662,6 +661,186 @@
         const capa = bloque.getAttribute("data-panel-capa");
         bloque.classList.toggle("oculto", !visibilidad[capa]);
       });
+    }
+
+    // Conversores lineales por tramos entre Nivel (0-10, base 4) y Centímetros (min, baseRef, max)
+    function nivel10ACm(nivel, minCm, baseCm, maxCm) {
+      const n = Math.max(0, Math.min(10, nivel));
+      if (n <= 4) return minCm + (baseCm - minCm) * (n / 4);
+      return baseCm + (maxCm - baseCm) * ((n - 4) / 6);
+    }
+
+    function cmANivel10(cm, minCm, baseCm, maxCm) {
+      const c = Math.max(minCm, Math.min(maxCm, cm));
+      if (c <= baseCm) return 4 * ((c - minCm) / Math.max(0.001, baseCm - minCm));
+      return 4 + 6 * ((c - baseCm) / Math.max(0.001, maxCm - baseCm));
+    }
+
+    function redondearPaso(val, paso = 0.5) {
+      return Math.round(val / paso) * paso;
+    }
+
+    // Sincroniza automáticamente los sliders interdependientes según cuál movió el usuario
+    function sincronizarInterdependencias(idOrigen) {
+      const el = (id) => document.getElementById(id);
+      const val = (id) => parseFloat(el(id).value);
+      const setVal = (id, v, paso = 0.5) => {
+        const input = el(id);
+        if (!input) return;
+        const min = parseFloat(input.min);
+        const max = parseFloat(input.max);
+        const clamped = Math.max(min, Math.min(max, redondearPaso(v, paso)));
+        input.value = clamped;
+      };
+
+      const estatura = val("estatura") || 175;
+      const masaResidualKg = 29.5 * (estatura / 175); // Masa ósea, visceral y sanguínea base
+      const musculoKg = val("musc-global") || 32;
+
+      // 1. Interdependencia entre Músculo (kg), Grasa Total (kg), Grasa Total (%) y los 5 Segmentos (kg)
+      const idsSegmentos = [
+        "grasa-tronco-kg",
+        "grasa-sup-der-kg",
+        "grasa-sup-izq-kg",
+        "grasa-inf-der-kg",
+        "grasa-inf-izq-kg"
+      ];
+
+      if (idOrigen === "grasa-total-kg") {
+        const gKg = val("grasa-total-kg");
+        const pesoTotal = masaResidualKg + musculoKg + gKg;
+        const nuevoPct = (gKg / pesoTotal) * 100;
+        setVal("grasa-total-pct", nuevoPct, 0.5);
+
+        // Reparte proporcionalmente en los 5 segmentos
+        const sumaActual = idsSegmentos.reduce((acc, id) => acc + val(id), 0) || 13.5;
+        const factor = gKg / sumaActual;
+        idsSegmentos.forEach((id) => setVal(id, val(id) * factor, 0.1));
+        setVal("cintura-cm", 64 + gKg * 1.18, 0.5);
+        setVal("cadera-cm", 84 + gKg * 0.88, 0.5);
+      } else if (idOrigen === "grasa-total-pct") {
+        const pct = Math.min(49.5, Math.max(4, val("grasa-total-pct")));
+        const masaMagra = masaResidualKg + musculoKg;
+        const nuevoKg = (pct * masaMagra) / (100 - pct);
+        setVal("grasa-total-kg", nuevoKg, 0.5);
+
+        const gKg = val("grasa-total-kg");
+        const sumaActual = idsSegmentos.reduce((acc, id) => acc + val(id), 0) || 13.5;
+        const factor = gKg / sumaActual;
+        idsSegmentos.forEach((id) => setVal(id, val(id) * factor, 0.1));
+        setVal("cintura-cm", 64 + gKg * 1.18, 0.5);
+        setVal("cadera-cm", 84 + gKg * 0.88, 0.5);
+      } else if (idsSegmentos.includes(idOrigen)) {
+        const nuevaSumaKg = idsSegmentos.reduce((acc, id) => acc + val(id), 0);
+        setVal("grasa-total-kg", nuevaSumaKg, 0.5);
+        const pesoTotal = masaResidualKg + musculoKg + nuevaSumaKg;
+        setVal("grasa-total-pct", (nuevaSumaKg / pesoTotal) * 100, 0.5);
+      } else if (idOrigen === "musc-global" || idOrigen === "estatura") {
+        // Si sube el músculo (o estatura), manteniendo los kg de grasa, el % de grasa baja fisiológicamente
+        const gKg = val("grasa-total-kg");
+        const pesoTotal = masaResidualKg + musculoKg + gKg;
+        setVal("grasa-total-pct", (gKg / pesoTotal) * 100, 0.5);
+      }
+
+      // 2. Interdependencia en Gran Rama DELTOIDES (cm <-> Nivel General <-> 3 Cabezas)
+      if (idOrigen === "hombros-cm") {
+        const niv = cmANivel10(val("hombros-cm"), 88, 118, 200);
+        setVal("delt-gen-n", niv, 0.5);
+        setVal("delt-ant", niv, 0.5);
+        setVal("delt-lat", niv, 0.5);
+        setVal("delt-post", niv, 0.5);
+      } else if (idOrigen === "delt-gen-n") {
+        const niv = val("delt-gen-n");
+        setVal("hombros-cm", nivel10ACm(niv, 88, 118, 200), 1);
+        setVal("delt-ant", niv, 0.5);
+        setVal("delt-lat", niv, 0.5);
+        setVal("delt-post", niv, 0.5);
+      } else if (["delt-ant", "delt-lat", "delt-post"].includes(idOrigen)) {
+        const prom = (val("delt-ant") + val("delt-lat") + val("delt-post")) / 3;
+        setVal("delt-gen-n", prom, 0.5);
+        setVal("hombros-cm", nivel10ACm(prom, 88, 118, 200), 1);
+      }
+
+      // 3. Interdependencia en Gran Rama BRAZOS (cm <-> Nivel General <-> Bíceps/Tríceps y Antebrazo)
+      if (idOrigen === "brazo-cm") {
+        const niv = cmANivel10(val("brazo-cm"), 22, 35, 75);
+        setVal("brazo-gen-n", niv, 0.5);
+        setVal("biceps-n", niv, 0.5);
+        setVal("triceps-n", niv, 0.5);
+      } else if (idOrigen === "brazo-gen-n") {
+        const niv = val("brazo-gen-n");
+        setVal("brazo-cm", nivel10ACm(niv, 22, 35, 75), 0.5);
+        setVal("biceps-n", niv, 0.5);
+        setVal("triceps-n", niv, 0.5);
+      } else if (["biceps-n", "triceps-n"].includes(idOrigen)) {
+        const prom = (val("biceps-n") + val("triceps-n")) / 2;
+        setVal("brazo-gen-n", prom, 0.5);
+        setVal("brazo-cm", nivel10ACm(prom, 22, 35, 75), 0.5);
+      }
+
+      if (idOrigen === "antebrazo-cm") {
+        setVal("antebrazo-n", cmANivel10(val("antebrazo-cm"), 18, 28, 48), 0.5);
+      } else if (idOrigen === "antebrazo-n") {
+        setVal("antebrazo-cm", nivel10ACm(val("antebrazo-n"), 18, 28, 48), 0.5);
+      }
+
+      // 4. Interdependencia en Gran Rama PECHO (cm <-> Nivel General <-> 3 Porciones)
+      if (idOrigen === "pecho-cm") {
+        const niv = cmANivel10(val("pecho-cm"), 75, 100, 160);
+        setVal("pecho-gen-n", niv, 0.5);
+        setVal("pec-sup", niv, 0.5);
+        setVal("pec-med", niv, 0.5);
+        setVal("pec-inf", niv, 0.5);
+      } else if (idOrigen === "pecho-gen-n") {
+        const niv = val("pecho-gen-n");
+        setVal("pecho-cm", nivel10ACm(niv, 75, 100, 160), 1);
+        setVal("pec-sup", niv, 0.5);
+        setVal("pec-med", niv, 0.5);
+        setVal("pec-inf", niv, 0.5);
+      } else if (["pec-sup", "pec-med", "pec-inf"].includes(idOrigen)) {
+        const prom = (val("pec-sup") + val("pec-med") + val("pec-inf")) / 3;
+        setVal("pecho-gen-n", prom, 0.5);
+        setVal("pecho-cm", nivel10ACm(prom, 75, 100, 160), 1);
+      }
+
+      // 5. Interdependencia en TRAPECIO (General <-> 3 Porciones)
+      if (idOrigen === "trap-gen-n") {
+        const niv = val("trap-gen-n");
+        setVal("trap-sup", niv, 0.5);
+        setVal("trap-med", niv, 0.5);
+        setVal("trap-inf", niv, 0.5);
+      } else if (["trap-sup", "trap-med", "trap-inf"].includes(idOrigen)) {
+        const prom = (val("trap-sup") + val("trap-med") + val("trap-inf")) / 3;
+        setVal("trap-gen-n", prom, 0.5);
+      }
+
+      // 6. Interdependencia en MUSLOS (cm <-> Nivel General <-> Cuádriceps/Isquiotibiales)
+      if (idOrigen === "muslo-cm") {
+        const niv = cmANivel10(val("muslo-cm"), 38, 56, 88);
+        setVal("muslo-gen-n", niv, 0.5);
+        setVal("cuadriceps-n", niv, 0.5);
+        setVal("isquios-n", niv, 0.5);
+      } else if (idOrigen === "muslo-gen-n") {
+        const niv = val("muslo-gen-n");
+        setVal("muslo-cm", nivel10ACm(niv, 38, 56, 88), 0.5);
+        setVal("cuadriceps-n", niv, 0.5);
+        setVal("isquios-n", niv, 0.5);
+      } else if (["cuadriceps-n", "isquios-n"].includes(idOrigen)) {
+        const prom = (val("cuadriceps-n") + val("isquios-n")) / 2;
+        setVal("muslo-gen-n", prom, 0.5);
+        setVal("muslo-cm", nivel10ACm(prom, 38, 56, 88), 0.5);
+      }
+
+      // 7. Interdependencia Espalda Adiposa (General <-> Alta/Media/Baja)
+      if (idOrigen === "grasa-esp-gen") {
+        const niv = val("grasa-esp-gen");
+        setVal("grasa-esp-alta", niv, 0.5);
+        setVal("grasa-esp-media", niv, 0.5);
+        setVal("grasa-esp-baja", niv, 0.5);
+      } else if (["grasa-esp-alta", "grasa-esp-media", "grasa-esp-baja"].includes(idOrigen)) {
+        const prom = (val("grasa-esp-alta") + val("grasa-esp-media") + val("grasa-esp-baja")) / 3;
+        setVal("grasa-esp-gen", prom, 0.5);
+      }
     }
 
     function leerParametros() {
@@ -884,7 +1063,8 @@
     });
 
     document.querySelectorAll("#panel input, #panel select").forEach((el) => {
-      const onChange = () => {
+      const onChange = (e) => {
+        sincronizarInterdependencias(e.target.id);
         actualizarArbolYEtiquetas(leerParametros());
         aplicarCambios();
       };
@@ -896,16 +1076,16 @@
   </script>
 
   <!-- ============================================================================
-  [BLOQUE 6] MOTOR WEBGL THREE.JS Y CONEXIÓN VOLUMÉTRICA (?v=6)
-  Función: Importa las 4 capas limpiando el caché con ?v=6 y ejecuta
+  [BLOQUE 6] MOTOR WEBGL THREE.JS Y CONEXIÓN VOLUMÉTRICA (?v=7)
+  Función: Importa las 4 capas limpiando el caché con ?v=7 y ejecuta
   applyAnatomyState en cascada (Esqueleto -> Músculo -> Grasa -> Piel).
   ============================================================================ -->
   <script type="module">
     import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.158.0/build/three.module.js";
-    import { crearCapaEsqueleto } from "./capa_esqueleto.js?v=6";
-    import { crearCapaMusculo } from "./capa_musculo.js?v=6";
-    import { crearCapaGrasa } from "./capa_grasa.js?v=6";
-    import { crearCapaPiel } from "./capa_piel.js?v=6";
+    import { crearCapaEsqueleto } from "./capa_esqueleto.js?v=7";
+    import { crearCapaMusculo } from "./capa_musculo.js?v=7";
+    import { crearCapaGrasa } from "./capa_grasa.js?v=7";
+    import { crearCapaPiel } from "./capa_piel.js?v=7";
 
     const visorW = () => Math.max(300, visorEl.clientWidth || window.innerWidth - 420);
     const visorH = () => Math.max(300, visorEl.clientHeight || window.innerHeight);
