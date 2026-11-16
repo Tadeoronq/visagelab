@@ -3,12 +3,13 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>VisageLab - Visor Avatar 3D (Interdependencia Biométrica)</title>
+  <title>VisageLab - Visor Avatar 3D (4 Capas Completas)</title>
 
   <!-- ============================================================================
-  [BLOQUE 1] IMPORT MAP DE THREE.JS Y ESTILOS CSS DE RAMAS JERÁRQUICAS
+  [BLOQUE 1] IMPORT MAP DE THREE.JS Y ESTILOS CSS DE LAS 4 CAPAS
   Función: Resuelve el especificador "three" requerido por GLTFLoader y estiliza
-  el visor 3D con un único panel lateral derecho desplazable.
+  el visor 3D, el panel de control filtrado por capa y los botones de importación
+  de diagnóstico facial.
   ============================================================================ -->
   <script type="importmap">
     {
@@ -39,7 +40,7 @@
       padding: 10px 14px; border-radius: 8px; font-size: 12px; z-index: 20; white-space: pre-wrap;
     }
     #panel {
-      width: 420px; flex-shrink: 0; background: #101724; border-left: 1px solid #1e293b;
+      width: 425px; flex-shrink: 0; background: #101724; border-left: 1px solid #1e293b;
       padding: 12px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; z-index: 10;
     }
     .tarjeta { background: #172133; border: 1px solid #26354d; border-radius: 10px; padding: 11px; }
@@ -67,21 +68,29 @@
     }
     .sub-rama-titulo { font-size: 11px; font-weight: 700; color: #94a3b8; margin-bottom: 6px; text-transform: uppercase; }
     .grid-capas { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; margin-bottom: 8px; }
-    .btn-capa {
+    .btn-capa, .btn-accion {
       background: #0d1422; color: #94a3b8; border: 1px solid #334155;
-      border-radius: 7px; padding: 7px 8px; font-size: 12px; font-weight: 600; cursor: pointer;
+      border-radius: 7px; padding: 7px 8px; font-size: 11.5px; font-weight: 600; cursor: pointer;
     }
     .btn-capa.activa { background: rgba(45, 212, 191, 0.16); color: #5eead4; border-color: #2dd4bf; }
+    .btn-accion { color: #e2e8f0; width: 100%; margin-top: 5px; transition: background 0.15s; }
+    .btn-accion:hover { background: #1e293b; border-color: #38bdf8; }
+    .badge-origen {
+      display: inline-block; font-size: 10.5px; padding: 3px 7px; border-radius: 5px;
+      background: rgba(56, 189, 248, 0.14); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.35);
+      margin-bottom: 6px;
+    }
     .fila-check { display: flex; align-items: center; justify-content: space-between; font-size: 12px; margin-top: 4px; }
     .control { margin-bottom: 7px; }
     .control:last-child { margin-bottom: 0; }
     .control label { display: flex; justify-content: space-between; font-size: 11.5px; margin-bottom: 2px; color: #cbd5e1; }
     .control span.val { color: #38bdf8; font-weight: 600; }
     input[type="range"] { width: 100%; accent-color: #2dd4bf; cursor: pointer; }
-    select {
+    select, input[type="color"] {
       width: 100%; background: #0d1422; color: #e2e8f0; border: 1px solid #334155;
       border-radius: 6px; padding: 5px 8px; font-size: 11.5px; margin-top: 2px; margin-bottom: 4px;
     }
+    input[type="color"] { height: 30px; padding: 2px; cursor: pointer; }
     .oculto { display: none !important; }
     @media (max-width: 820px) {
       body { flex-direction: column; }
@@ -95,7 +104,7 @@
     <div class="hud">
       <strong>VISAGELAB · SIMULADOR ANATÓMICO 3D</strong><br />
       Arrastra para rotar · Rueda para zoom<br />
-      <span id="estado-capas">Capas activas: Esqueleto + Músculo + Grasa</span>
+      <span id="estado-capas">Capas activas: Esqueleto + Músculo + Grasa + Piel</span>
     </div>
     <div id="error-visor"></div>
   </div>
@@ -107,11 +116,11 @@
         <button type="button" class="btn-capa activa" data-capa="esqueleto">1. Esqueleto</button>
         <button type="button" class="btn-capa activa" data-capa="musculo">2. Músculo</button>
         <button type="button" class="btn-capa activa" data-capa="grasa">3. Grasa</button>
-        <button type="button" class="btn-capa" data-capa="piel">4. Piel</button>
+        <button type="button" class="btn-capa activa" data-capa="piel">4. Piel</button>
       </div>
       <label class="fila-check">
-        <span>Piel translúcida</span>
-        <input type="checkbox" id="piel-translucida" checked />
+        <span>Piel translúcida (Inspección interna)</span>
+        <input type="checkbox" id="piel-translucida" />
       </label>
     </div>
 
@@ -122,7 +131,7 @@
     <div class="bloque-capa" data-panel-capa="esqueleto">
       <div class="titulo-capa">Controles de Capa 1 · Sistema Esquelético</div>
 
-      <details class="gran-rama" open>
+      <details class="gran-rama">
         <summary>Rama: Estructura Base y Columna Vertebral</summary>
         <div class="control">
           <label>Estatura <span class="val" id="v-estatura">175 cm</span></label>
@@ -498,7 +507,7 @@
         </div>
       </div>
 
-      <details class="gran-rama" open>
+      <details class="gran-rama">
         <summary>2. Grasas Segmentarias (en Kilogramos kg)</summary>
         <div class="sub-rama">
           <div class="sub-rama-titulo">5 Segmentos Corporales (Suma = Grasa Total kg)</div>
@@ -525,7 +534,7 @@
         </div>
       </details>
 
-      <details class="gran-rama" open>
+      <details class="gran-rama">
         <summary>3. Medidas en Centímetros (cm) y Zonas</summary>
         <div class="sub-rama">
           <div class="sub-rama-titulo">↳ Perímetros en Centímetros (cm)</div>
@@ -629,15 +638,141 @@
         </div>
       </details>
     </div>
+
+    <!-- ============================================================================
+    [BLOQUE 5] PANEL EXCLUSIVO DE CAPA 4 (PIEL: IMPORTACIÓN, CIELAB Y ACABADO)
+    Función: Gestiona las 2 vías de entrada (Importación desde Diagnóstico Facial
+    + Panel Manual con prioridad de refinamiento), el espectro continuo de piel,
+    espacio CIELAB (L*a*b*), subtono, estación cromática y calidad superficial.
+    ============================================================================ -->
+    <div class="bloque-capa" data-panel-capa="piel">
+      <div class="titulo-capa">Controles de Capa 4 · Piel y Colorimetría</div>
+
+      <!-- 1. DOS VÍAS DE ENTRADA: IMPORTACIÓN DE DIAGNÓSTICO FACIAL O MODO MANUAL -->
+      <div class="tarjeta">
+        <h3>1. Origen de Datos (Diagnóstico Facial ↔ Manual)</h3>
+        <div class="badge-origen" id="badge-origen-piel">Modo Manual Activo (Listo para recibir Diagnóstico Facial)</div>
+        <div class="control">
+          <label>Sexo Morfológico Cutáneo</label>
+          <select id="sexo">
+            <option value="masculino" selected>Masculino</option>
+            <option value="femenino">Femenino</option>
+          </select>
+        </div>
+        <button type="button" class="btn-accion" id="btn-simular-importacion">
+          Probar Recepción de Diagnóstico Facial (Demo Primavera)
+        </button>
+        <button type="button" class="btn-accion oculto" id="btn-restaurar-importacion">
+          Restaurar Base de Diagnóstico Importado
+        </button>
+      </div>
+
+      <!-- 2. GRAN RAMA: COLORIMETRÍA (TONO CONTINUO, CIELAB L*a*b*, SUBTONO Y ESTACIÓN) -->
+      <details class="gran-rama" open>
+        <summary>2. Colorimetría (Espectro, CIELAB, Subtono y Estación)</summary>
+        <div class="sub-rama">
+          <div class="sub-rama-titulo">↳ Tono Base y Espectro Continuo</div>
+          <div class="control">
+            <label>Espectro Continuo (Oscuro 0 ↔ Claro 100) <span class="val" id="v-piel-espectro">68 %</span></label>
+            <input type="range" id="piel-espectro" min="0" max="100" step="1" value="68" />
+          </div>
+          <div class="control">
+            <label>Color Base Directo (HEX / RGB) <span class="val" id="v-color-piel">#d9a37a</span></label>
+            <input type="color" id="color-piel" value="#d9a37a" />
+          </div>
+        </div>
+
+        <div class="sub-rama">
+          <div class="sub-rama-titulo">↳ Espacio Perceptivo CIELAB (L* a* b* Sincronizado)</div>
+          <div class="control">
+            <label>Luminosidad (L*) <span class="val" id="v-piel-l">70.5</span></label>
+            <input type="range" id="piel-l" min="20" max="92" step="0.5" value="70.5" />
+          </div>
+          <div class="control">
+            <label>Eje Verde–Rojo (a* Eritema/Calidez) <span class="val" id="v-piel-a">14.5</span></label>
+            <input type="range" id="piel-a" min="-10" max="40" step="0.5" value="14.5" />
+          </div>
+          <div class="control">
+            <label>Eje Azul–Amarillo (b* Melanina/Dorado) <span class="val" id="v-piel-b">24.0</span></label>
+            <input type="range" id="piel-b" min="-10" max="50" step="0.5" value="24.0" />
+          </div>
+        </div>
+
+        <div class="sub-rama">
+          <div class="sub-rama-titulo">↳ Subtono y Estación Cromática</div>
+          <div class="control">
+            <label>Subtono Cutáneo</label>
+            <select id="piel-subtono">
+              <option value="calido" selected>Cálido (Dorado / Durazno)</option>
+              <option value="frio">Frío (Rosado / Azulado)</option>
+              <option value="neutro">Neutro (Equilibrado)</option>
+              <option value="oliva">Oliva (Cetrino / Verdoso Suave)</option>
+            </select>
+          </div>
+          <div class="control">
+            <label>Estación Cromática (12 Estaciones)</label>
+            <select id="piel-estacion">
+              <option value="primavera_clara">Primavera Clara</option>
+              <option value="primavera_calida" selected>Primavera Cálida</option>
+              <option value="primavera_brillante">Primavera Brillante</option>
+              <option value="verano_claro">Verano Claro</option>
+              <option value="verano_suave">Verano Suave</option>
+              <option value="verano_frio">Verano Frío</option>
+              <option value="otono_suave">Otoño Suave</option>
+              <option value="otono_calido">Otoño Cálido</option>
+              <option value="otono_profundo">Otoño Profundo</option>
+              <option value="invierno_frio">Invierno Frío</option>
+              <option value="invierno_profundo">Invierno Profundo</option>
+              <option value="invierno_brillante">Invierno Brillante</option>
+            </select>
+          </div>
+        </div>
+      </details>
+
+      <!-- 3. GRAN RAMA: CALIDAD, ESTADO Y ACABADO SUPERFICIAL -->
+      <details class="gran-rama" open>
+        <summary>3. Calidad, Estado y Respuesta a la Luz</summary>
+        <div class="sub-rama">
+          <div class="control">
+            <label>Condición / Estado General de la Piel</label>
+            <select id="piel-calidad">
+              <option value="sana" selected>Piel Sana (Equilibrada Natural)</option>
+              <option value="hidratada_glow">Hidratada / Luminosa (Glow)</option>
+              <option value="mate_porcelana">Mate / Porcelana Suave</option>
+              <option value="seca_texturizada">Seca / Micro-relieve Marcado</option>
+              <option value="oleosa_brillante">Mixta a Oleosa (Brillo Alto)</option>
+            </select>
+          </div>
+          <div class="control">
+            <label>Rugosidad / Acabado Mate (Roughness) <span class="val" id="v-piel-roughness">0.48</span></label>
+            <input type="range" id="piel-roughness" min="0.18" max="0.85" step="0.02" value="0.48" />
+          </div>
+          <div class="control">
+            <label>Micro-textura de Poros <span class="val" id="v-piel-poros">0.0018</span></label>
+            <input type="range" id="piel-poros" min="0.0004" max="0.0050" step="0.0002" value="0.0018" />
+          </div>
+          <div class="control">
+            <label>Calidez Dérmica Subsuperficial (SSS) <span class="val" id="v-piel-sss">0.38</span></label>
+            <input type="range" id="piel-sss" min="0.05" max="0.80" step="0.02" value="0.38" />
+          </div>
+        </div>
+      </details>
+    </div>
   </aside>
 
   <!-- ============================================================================
-  [BLOQUE 5] MOTOR DE INTERDEPENDENCIA FISIOLÓGICA Y LECTURA DE PARÁMETROS
-  Función: Conecta bidireccionalmente los controles:
-  - Grasa (kg) <-> Grasa (%) <-> 5 Segmentos (kg) <-> Músculo Global (kg).
-  - Centímetros (cm) <-> Nivel de Desarrollo (0-10) <-> Sub-ramas musculares.
+  [BLOQUE 6] MOTOR DE INTERDEPENDENCIA BIOMÉTRICA Y COLORIMÉTRICA (CAPAS 1 A 4)
+  Función: Conecta bidireccionalmente los controles de Esqueleto, Músculo, Grasa
+  y Piel (incluyendo CIELAB L*a*b* <-> HEX <-> Espectro Continuo y Presets de
+  Calidad Cutánea).
   ============================================================================ -->
-  <script>
+  <script type="module">
+    import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.158.0/build/three.module.js";
+    import { crearCapaEsqueleto } from "./capa_esqueleto.js?v=8";
+    import { crearCapaMusculo } from "./capa_musculo.js?v=8";
+    import { crearCapaGrasa } from "./capa_grasa.js?v=8";
+    import { crearCapaPiel, hexToLab, labToHex } from "./capa_piel.js?v=8";
+
     const visorEl = document.getElementById("visor-3d");
     const errorBox = document.getElementById("error-visor");
 
@@ -653,8 +788,8 @@
       mostrarError(e.reason?.message || String(e.reason));
     });
 
-    const visibilidad = { esqueleto: true, musculo: true, grasa: true, piel: false };
-    let aplicarCambios = () => {};
+    const visibilidad = { esqueleto: true, musculo: true, grasa: true, piel: true };
+    let diagnosticoBaseGuardado = null;
 
     function sincronizarPanelesPorCapa() {
       document.querySelectorAll("[data-panel-capa]").forEach((bloque) => {
@@ -663,7 +798,6 @@
       });
     }
 
-    // Conversores lineales por tramos entre Nivel (0-10, base 4) y Centímetros (min, baseRef, max)
     function nivel10ACm(nivel, minCm, baseCm, maxCm) {
       const n = Math.max(0, Math.min(10, nivel));
       if (n <= 4) return minCm + (baseCm - minCm) * (n / 4);
@@ -680,7 +814,14 @@
       return Math.round(val / paso) * paso;
     }
 
-    // Sincroniza automáticamente los sliders interdependientes según cuál movió el usuario
+    const PRESETS_CALIDAD_UI = {
+      sana: { roughness: 0.48, poros: 0.0018, sss: 0.38 },
+      hidratada_glow: { roughness: 0.32, poros: 0.0012, sss: 0.46 },
+      mate_porcelana: { roughness: 0.64, poros: 0.0010, sss: 0.30 },
+      seca_texturizada: { roughness: 0.74, poros: 0.0038, sss: 0.22 },
+      oleosa_brillante: { roughness: 0.26, poros: 0.0028, sss: 0.42 }
+    };
+
     function sincronizarInterdependencias(idOrigen) {
       const el = (id) => document.getElementById(id);
       const val = (id) => parseFloat(el(id).value);
@@ -689,15 +830,13 @@
         if (!input) return;
         const min = parseFloat(input.min);
         const max = parseFloat(input.max);
-        const clamped = Math.max(min, Math.min(max, redondearPaso(v, paso)));
-        input.value = clamped;
+        input.value = Math.max(min, Math.min(max, redondearPaso(v, paso)));
       };
 
       const estatura = val("estatura") || 175;
-      const masaResidualKg = 29.5 * (estatura / 175); // Masa ósea, visceral y sanguínea base
+      const masaResidualKg = 29.5 * (estatura / 175);
       const musculoKg = val("musc-global") || 32;
 
-      // 1. Interdependencia entre Músculo (kg), Grasa Total (kg), Grasa Total (%) y los 5 Segmentos (kg)
       const idsSegmentos = [
         "grasa-tronco-kg",
         "grasa-sup-der-kg",
@@ -706,13 +845,11 @@
         "grasa-inf-izq-kg"
       ];
 
+      // 1. Interdependencia Grasa (kg) <-> Grasa (%) <-> 5 Segmentos <-> Músculo (kg)
       if (idOrigen === "grasa-total-kg") {
         const gKg = val("grasa-total-kg");
         const pesoTotal = masaResidualKg + musculoKg + gKg;
-        const nuevoPct = (gKg / pesoTotal) * 100;
-        setVal("grasa-total-pct", nuevoPct, 0.5);
-
-        // Reparte proporcionalmente en los 5 segmentos
+        setVal("grasa-total-pct", (gKg / pesoTotal) * 100, 0.5);
         const sumaActual = idsSegmentos.reduce((acc, id) => acc + val(id), 0) || 13.5;
         const factor = gKg / sumaActual;
         idsSegmentos.forEach((id) => setVal(id, val(id) * factor, 0.1));
@@ -723,7 +860,6 @@
         const masaMagra = masaResidualKg + musculoKg;
         const nuevoKg = (pct * masaMagra) / (100 - pct);
         setVal("grasa-total-kg", nuevoKg, 0.5);
-
         const gKg = val("grasa-total-kg");
         const sumaActual = idsSegmentos.reduce((acc, id) => acc + val(id), 0) || 13.5;
         const factor = gKg / sumaActual;
@@ -736,13 +872,12 @@
         const pesoTotal = masaResidualKg + musculoKg + nuevaSumaKg;
         setVal("grasa-total-pct", (nuevaSumaKg / pesoTotal) * 100, 0.5);
       } else if (idOrigen === "musc-global" || idOrigen === "estatura") {
-        // Si sube el músculo (o estatura), manteniendo los kg de grasa, el % de grasa baja fisiológicamente
         const gKg = val("grasa-total-kg");
         const pesoTotal = masaResidualKg + musculoKg + gKg;
         setVal("grasa-total-pct", (gKg / pesoTotal) * 100, 0.5);
       }
 
-      // 2. Interdependencia en Gran Rama DELTOIDES (cm <-> Nivel General <-> 3 Cabezas)
+      // 2. Interdependencias Musculares (cm <-> Nivel 0-10 <-> Sub-ramas)
       if (idOrigen === "hombros-cm") {
         const niv = cmANivel10(val("hombros-cm"), 88, 118, 200);
         setVal("delt-gen-n", niv, 0.5);
@@ -761,7 +896,6 @@
         setVal("hombros-cm", nivel10ACm(prom, 88, 118, 200), 1);
       }
 
-      // 3. Interdependencia en Gran Rama BRAZOS (cm <-> Nivel General <-> Bíceps/Tríceps y Antebrazo)
       if (idOrigen === "brazo-cm") {
         const niv = cmANivel10(val("brazo-cm"), 22, 35, 75);
         setVal("brazo-gen-n", niv, 0.5);
@@ -784,7 +918,6 @@
         setVal("antebrazo-cm", nivel10ACm(val("antebrazo-n"), 18, 28, 48), 0.5);
       }
 
-      // 4. Interdependencia en Gran Rama PECHO (cm <-> Nivel General <-> 3 Porciones)
       if (idOrigen === "pecho-cm") {
         const niv = cmANivel10(val("pecho-cm"), 75, 100, 160);
         setVal("pecho-gen-n", niv, 0.5);
@@ -803,7 +936,6 @@
         setVal("pecho-cm", nivel10ACm(prom, 75, 100, 160), 1);
       }
 
-      // 5. Interdependencia en TRAPECIO (General <-> 3 Porciones)
       if (idOrigen === "trap-gen-n") {
         const niv = val("trap-gen-n");
         setVal("trap-sup", niv, 0.5);
@@ -814,7 +946,6 @@
         setVal("trap-gen-n", prom, 0.5);
       }
 
-      // 6. Interdependencia en MUSLOS (cm <-> Nivel General <-> Cuádriceps/Isquiotibiales)
       if (idOrigen === "muslo-cm") {
         const niv = cmANivel10(val("muslo-cm"), 38, 56, 88);
         setVal("muslo-gen-n", niv, 0.5);
@@ -831,7 +962,6 @@
         setVal("muslo-cm", nivel10ACm(prom, 38, 56, 88), 0.5);
       }
 
-      // 7. Interdependencia Espalda Adiposa (General <-> Alta/Media/Baja)
       if (idOrigen === "grasa-esp-gen") {
         const niv = val("grasa-esp-gen");
         setVal("grasa-esp-alta", niv, 0.5);
@@ -840,6 +970,38 @@
       } else if (["grasa-esp-alta", "grasa-esp-media", "grasa-esp-baja"].includes(idOrigen)) {
         const prom = (val("grasa-esp-alta") + val("grasa-esp-media") + val("grasa-esp-baja")) / 3;
         setVal("grasa-esp-gen", prom, 0.5);
+      }
+
+      // 3. Interdependencia Colorimétrica de Capa 4: Espectro <-> HEX <-> CIELAB (L*a*b*)
+      if (idOrigen === "piel-espectro") {
+        const t = val("piel-espectro") / 100; // 0 = oscuro profundo, 1 = muy claro
+        const L = 26 + t * 62;
+        const a = 11 + Math.sin(t * Math.PI) * 5;
+        const b = 16 + Math.sin(t * Math.PI * 0.85) * 12;
+        setVal("piel-l", L, 0.5);
+        setVal("piel-a", a, 0.5);
+        setVal("piel-b", b, 0.5);
+        el("color-piel").value = labToHex(val("piel-l"), val("piel-a"), val("piel-b"));
+      } else if (idOrigen === "color-piel") {
+        const lab = hexToLab(el("color-piel").value);
+        setVal("piel-l", lab.L, 0.5);
+        setVal("piel-a", lab.a, 0.5);
+        setVal("piel-b", lab.b, 0.5);
+        setVal("piel-espectro", ((lab.L - 26) / 62) * 100, 1);
+      } else if (["piel-l", "piel-a", "piel-b"].includes(idOrigen)) {
+        const hex = labToHex(val("piel-l"), val("piel-a"), val("piel-b"));
+        el("color-piel").value = hex;
+        setVal("piel-espectro", ((val("piel-l") - 26) / 62) * 100, 1);
+      } else if (idOrigen === "piel-calidad") {
+        const p = PRESETS_CALIDAD_UI[el("piel-calidad").value] || PRESETS_CALIDAD_UI.sana;
+        setVal("piel-roughness", p.roughness, 0.02);
+        setVal("piel-poros", p.poros, 0.0002);
+        setVal("piel-sss", p.sss, 0.02);
+      }
+
+      // Si había un diagnóstico importado y el usuario mueve un control de piel, indica ajuste manual sobre base
+      if (diagnosticoBaseGuardado && idOrigen && idOrigen.startsWith("piel-") || idOrigen === "color-piel") {
+        el("badge-origen-piel").textContent = "Diagnóstico Importado + Ajuste Fino Manual";
       }
     }
 
@@ -939,7 +1101,21 @@
         pliegueSubescapularMm: val("plic-subescapular"),
         pliegueSuprailiacoMm: val("plic-suprailiaco"),
         pliegueAbdominalMm: val("plic-abdominal"),
-        pliegueMusloMm: val("plic-muslo")
+        pliegueMusloMm: val("plic-muslo"),
+
+        // Capa 4: Piel y Colorimetría
+        sexo: txt("sexo"),
+        pielEspectro: val("piel-espectro"),
+        colorPiel: txt("color-piel"),
+        pielL: val("piel-l"),
+        pielA: val("piel-a"),
+        pielB: val("piel-b"),
+        pielSubtono: txt("piel-subtono"),
+        pielEstacion: txt("piel-estacion"),
+        pielCalidad: txt("piel-calidad"),
+        pielRoughness: val("piel-roughness"),
+        pielPorosidad: val("piel-poros"),
+        pielSubsurface: val("piel-sss")
       };
     }
 
@@ -974,6 +1150,17 @@
       document.getElementById("grasa-esp-general-wrap").classList.toggle("oculto", p.grasaEspaldaModo !== "general");
       document.getElementById("grasa-esp-desglosado-wrap").classList.toggle("oculto", p.grasaEspaldaModo !== "desglosado");
 
+      // Etiquetas Capa 4 (Piel)
+      document.getElementById("v-piel-espectro").textContent = `${p.pielEspectro.toFixed(0)} %`;
+      document.getElementById("v-color-piel").textContent = p.colorPiel.toUpperCase();
+      document.getElementById("v-piel-l").textContent = p.pielL.toFixed(1);
+      document.getElementById("v-piel-a").textContent = p.pielA.toFixed(1);
+      document.getElementById("v-piel-b").textContent = p.pielB.toFixed(1);
+      document.getElementById("v-piel-roughness").textContent = p.pielRoughness.toFixed(2);
+      document.getElementById("v-piel-poros").textContent = p.pielPorosidad.toFixed(4);
+      document.getElementById("v-piel-sss").textContent = p.pielSubsurface.toFixed(2);
+
+      // Etiquetas Capa 3
       document.getElementById("v-grasa-total-pct").textContent = `${p.grasaTotalPct.toFixed(1)} %`;
       document.getElementById("v-grasa-total-kg").textContent = `${p.grasaTotalKg.toFixed(1)} kg`;
       document.getElementById("v-grasa-tronco-kg").textContent = `${p.grasaTroncoKg.toFixed(1)} kg`;
@@ -1004,6 +1191,7 @@
       document.getElementById("v-plic-abdominal").textContent = `${p.pliegueAbdominalMm.toFixed(0)} mm`;
       document.getElementById("v-plic-muslo").textContent = `${p.pliegueMusloMm.toFixed(0)} mm`;
 
+      // Etiquetas Capa 2 y Capa 1
       document.getElementById("v-musc-global").textContent = `${p.musculoGlobalKg.toFixed(1)} kg`;
       document.getElementById("v-hombros-cm").textContent = `${p.hombrosCm.toFixed(0)} cm`;
       document.getElementById("v-brazo-cm").textContent = `${p.brazoCm.toFixed(1)} cm`;
@@ -1052,42 +1240,13 @@
         `Capas activas: ${activas.length ? activas.join(" + ") : "Ninguna"}`;
     }
 
-    document.querySelectorAll(".btn-capa").forEach((btn) => {
-      btn.addEventListener("click", () => {
-        const capa = btn.dataset.capa;
-        visibilidad[capa] = !visibilidad[capa];
-        btn.classList.toggle("activa", visibilidad[capa]);
-        actualizarArbolYEtiquetas(leerParametros());
-        aplicarCambios();
-      });
-    });
-
-    document.querySelectorAll("#panel input, #panel select").forEach((el) => {
-      const onChange = (e) => {
-        sincronizarInterdependencias(e.target.id);
-        actualizarArbolYEtiquetas(leerParametros());
-        aplicarCambios();
-      };
-      el.addEventListener("input", onChange);
-      el.addEventListener("change", onChange);
-    });
-
-    actualizarArbolYEtiquetas(leerParametros());
-  </script>
-
-  <!-- ============================================================================
-  [BLOQUE 6] MOTOR WEBGL THREE.JS Y CONEXIÓN VOLUMÉTRICA (?v=7)
-  Función: Importa las 4 capas limpiando el caché con ?v=7 y ejecuta
-  applyAnatomyState en cascada (Esqueleto -> Músculo -> Grasa -> Piel).
-  ============================================================================ -->
-  <script type="module">
-    import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.158.0/build/three.module.js";
-    import { crearCapaEsqueleto } from "./capa_esqueleto.js?v=7";
-    import { crearCapaMusculo } from "./capa_musculo.js?v=7";
-    import { crearCapaGrasa } from "./capa_grasa.js?v=7";
-    import { crearCapaPiel } from "./capa_piel.js?v=7";
-
-    const visorW = () => Math.max(300, visorEl.clientWidth || window.innerWidth - 420);
+    // ==========================================================================
+    // [BLOQUE 7] ESCENA THREE.JS, ENVOLTURA CERRADA Y PUENTE GLOBAL DE IMPORTACIÓN
+    // Función: Inicializa WebGL, coordina las 4 capas asegurando que la piel
+    // oculte las mallas internas cuando es opaca (cero perforación) y expone
+    // window.VisageLabAvatar.importarDiagnosticoFacial(datos) para Fase 1.
+    // ==========================================================================
+    const visorW = () => Math.max(300, visorEl.clientWidth || window.innerWidth - 425);
     const visorH = () => Math.max(300, visorEl.clientHeight || window.innerHeight);
 
     const escena = new THREE.Scene();
@@ -1125,25 +1284,99 @@
 
     const capas = { esqueleto: capaEsqueleto, musculo: capaMusculo, grasa: capaGrasa, piel: capaPiel };
 
-    window.aplicarCambios = aplicarCambios = () => {
+    function aplicarCambios() {
       try {
         errorBox.style.display = "none";
         const p = leerParametros();
-        Object.entries(visibilidad).forEach(([clave, activa]) => {
-          capas[clave].group.visible = activa;
-        });
 
-        (capaEsqueleto.applyAnatomyState || capaEsqueleto.actualizar)(p);
+        // Actualizar siempre la matemática interna en cascada (Capa 1 -> 2 -> 3 -> 4)
+        capaEsqueleto.applyAnatomyState(p);
         const contexto = { ...p, anclajes: capaEsqueleto.anclajes };
-        (capaMusculo.applyAnatomyState || capaMusculo.actualizar)(contexto);
-        (capaGrasa.applyAnatomyState || capaGrasa.actualizar)(contexto);
+        capaMusculo.applyAnatomyState(contexto);
+        capaGrasa.applyAnatomyState(contexto);
 
         const contextoPiel = { ...contexto, estadoGrasa: capaGrasa.estadoVolumetrico };
-        (capaPiel.applyAnatomyState || capaPiel.actualizar)(contextoPiel);
+        capaPiel.applyAnatomyState(contextoPiel);
+
+        // Regla de Oro: Si la Capa 4 (Piel) está activa y NO está en modo translúcido,
+        // la piel actúa como envoltura exterior cerrada (oculta el renderizado interno
+        // de músculo y grasa para que jamás exista perforación visual al rotar o hacer zoom)
+        const pielOpacaActiva = visibilidad.piel && !p.translucida;
+        capaEsqueleto.group.visible = visibilidad.esqueleto && !pielOpacaActiva;
+        capaMusculo.group.visible = visibilidad.musculo && !pielOpacaActiva;
+        capaGrasa.group.visible = visibilidad.grasa && !pielOpacaActiva;
+        capaPiel.group.visible = visibilidad.piel;
       } catch (err) {
         mostrarError(err.message || String(err));
       }
+    }
+
+    // Puente listo para recibir los datos cuando termines el módulo de Análisis Facial
+    function recibirDiagnosticoFacialExterno(datos = {}) {
+      const aplicado = capaPiel.importarDiagnosticoFacial(datos);
+      diagnosticoBaseGuardado = { ...aplicado };
+
+      document.getElementById("color-piel").value = aplicado.colorPiel;
+      document.getElementById("piel-l").value = aplicado.pielL;
+      document.getElementById("piel-a").value = aplicado.pielA;
+      document.getElementById("piel-b").value = aplicado.pielB;
+      document.getElementById("piel-espectro").value = Math.round(((aplicado.pielL - 26) / 62) * 100);
+      document.getElementById("piel-subtono").value = aplicado.pielSubtono;
+      document.getElementById("piel-estacion").value = aplicado.pielEstacion;
+      document.getElementById("piel-calidad").value = aplicado.pielCalidad;
+      document.getElementById("piel-roughness").value = aplicado.pielRoughness;
+
+      document.getElementById("badge-origen-piel").textContent =
+        `Diagnóstico Facial Importado (${aplicado.pielEstacion.replace("_", " ").toUpperCase()})`;
+      document.getElementById("btn-restaurar-importacion").classList.remove("oculto");
+
+      actualizarArbolYEtiquetas(leerParametros());
+      aplicarCambios();
+    }
+
+    // Expone la API global para integrarla con tu análisis facial y corporal en una línea
+    window.VisageLabAvatar = {
+      importarDiagnosticoFacial: recibirDiagnosticoFacialExterno,
+      leerParametros,
+      capas
     };
+
+    document.getElementById("btn-simular-importacion").addEventListener("click", () => {
+      recibirDiagnosticoFacialExterno({
+        L: 68.5,
+        a: 15.0,
+        b: 26.5,
+        subtono: "calido",
+        estacion: "primavera_calida",
+        calidad: "sana"
+      });
+    });
+
+    document.getElementById("btn-restaurar-importacion").addEventListener("click", () => {
+      if (diagnosticoBaseGuardado) {
+        recibirDiagnosticoFacialExterno(diagnosticoBaseGuardado);
+      }
+    });
+
+    document.querySelectorAll(".btn-capa").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const capa = btn.dataset.capa;
+        visibilidad[capa] = !visibilidad[capa];
+        btn.classList.toggle("activa", visibilidad[capa]);
+        actualizarArbolYEtiquetas(leerParametros());
+        aplicarCambios();
+      });
+    });
+
+    document.querySelectorAll("#panel input, #panel select").forEach((el) => {
+      const onChange = (e) => {
+        sincronizarInterdependencias(e.target.id);
+        actualizarArbolYEtiquetas(leerParametros());
+        aplicarCambios();
+      };
+      el.addEventListener("input", onChange);
+      el.addEventListener("change", onChange);
+    });
 
     let arrastrando = false, prevX = 0, prevY = 0, rotY = 0, rotX = 0.12, distancia = 3.1;
 
@@ -1179,6 +1412,7 @@
       renderizador.setSize(visorW(), visorH());
     });
 
+    actualizarArbolYEtiquetas(leerParametros());
     aplicarCambios();
     actualizarCamara();
 
