@@ -143,10 +143,11 @@ function obtenerPesosArcoEscoliosis(numHuesos) {
 }
 
 // ============================================================================
-// [BLOQUE 3] ARMATURE JERÁRQUICO, POSE EN "A" CON MANOS SEPARADAS Y MALLAS ÓSEAS
-// Función: Construye el árbol cinemático separando los húmeros, antebrazos y
-// manos en una A-Pose amplia para que jamás se sobrepongan con la cadera, el
-// músculo o la grasa, y registra la restPose inmutable.
+// [BLOQUE 3] ARMATURE JERÁRQUICO, POSE EN "A" ABIERTA HACIA AFUERA Y MALLAS ÓSEAS
+// Función: Construye el árbol cinemático aplicando rotación Z con signo positivo
+// (+s * 0.42 en hombro y +s * 0.18 en codo) para que los brazos y manos que
+// cuelgan en -Y se abran ampliamente hacia afuera del cuerpo sin tocar el torso
+// ni los muslos, registrando su restPose inmutable.
 // ============================================================================
 export function crearCapaEsqueleto(opciones = {}) {
   const group = new THREE.Group();
@@ -243,14 +244,14 @@ export function crearCapaEsqueleto(opciones = {}) {
   }
   const hCraneo = crearHueso("Head", padreActual, [0, 0.042, 0.012], [0.02, 0, 0]);
 
-  // Brazos con mayor separación lateral (A-Pose abierta: -0.34 rad en hombro y -0.14 rad en codo)
+  // Brazos abiertos hacia afuera: signo POSITIVO (+s) en rotation.z aleja el brazo del cuerpo
   function construirCadenaBrazo(lado) {
     const s = lado === "L" ? -1 : 1;
-    const hClavicula = crearHueso(`Clavicle.${lado}`, huesos["T2"], [s * 0.026, 0.012, 0.044]);
-    const hEscapula = crearHueso(`Scapula.${lado}`, huesos["T4"], [s * 0.072, 0.014, -0.040]);
-    const hHombro = crearHueso(`UpperArm.${lado}`, hClavicula, [s * 0.175, -0.006, -0.018], [0, 0, -s * 0.34]);
-    const hCodo = crearHueso(`Forearm.${lado}`, hHombro, [0, -0.28, 0], [-0.08, 0, -s * 0.14]);
-    const hMuneca = crearHueso(`Hand.${lado}`, hCodo, [0, -0.25, 0], [0, 0, -s * 0.06]);
+    const hClavicula = crearHueso(`Clavicle.${lado}`, huesos["T2"], [s * 0.028, 0.012, 0.044]);
+    const hEscapula = crearHueso(`Scapula.${lado}`, huesos["T4"], [s * 0.075, 0.014, -0.040]);
+    const hHombro = crearHueso(`UpperArm.${lado}`, hClavicula, [s * 0.185, -0.006, -0.018], [0, 0, s * 0.42]);
+    const hCodo = crearHueso(`Forearm.${lado}`, hHombro, [0, -0.28, 0], [-0.08, 0, s * 0.18]);
+    const hMuneca = crearHueso(`Hand.${lado}`, hCodo, [0, -0.25, 0], [0, 0, s * 0.08]);
     return { hClavicula, hEscapula, hHombro, hCodo, hMuneca };
   }
   const cadBrazoIzq = construirCadenaBrazo("L");
@@ -322,9 +323,9 @@ export function crearCapaEsqueleto(opciones = {}) {
   // Extremidades Superiores con mano anatómica (metacarpos + dedos)
   function vestirBrazo(cad, lado) {
     const s = lado === "L" ? -1 : 1;
-    const clavicula = malla(crearDiafisis(0.010, 0.007, 0.172));
+    const clavicula = malla(crearDiafisis(0.010, 0.007, 0.180));
     clavicula.rotation.z = s * (Math.PI * 0.47);
-    clavicula.position.set(s * 0.086, -0.004, -0.011);
+    clavicula.position.set(s * 0.090, -0.004, -0.011);
     cad.hClavicula.add(clavicula);
 
     const escapula = malla(new THREE.ConeGeometry(0.046, 0.115, 3));
@@ -442,10 +443,10 @@ export function crearCapaEsqueleto(opciones = {}) {
   const pesosArcoDorsal = obtenerPesosArcoEscoliosis(12);
 
   // ==========================================================================
-  // [BLOQUE 5] MOTOR UNIFICADO applyAnatomyState(state) CON SEPARACIÓN DINÁMICA
-  // Función: Resetea a restPose, aplica los 12 parámetros clínicos y abre
-  // dinámicamente los brazos si aumenta el volumen de dorsal/cintura/grasa para
-  // garantizar que las manos jamás choquen con el cuerpo.
+  // [BLOQUE 5] MOTOR UNIFICADO applyAnatomyState(state) CON APERTURA EXTERIOR
+  // Función: Resetea a restPose, aplica los 12 parámetros clínicos y suma
+  // abducción hacia afuera (+s * abduccionExtra) cuando crecen dorsal, músculo
+  // o grasa para mantener los brazos siempre separados del cuerpo.
   // ==========================================================================
   function applyAnatomyState(state = {}) {
     ultimoParams = { ...ultimoParams, ...state };
@@ -559,14 +560,14 @@ export function crearCapaEsqueleto(opciones = {}) {
     hCraneo.rotation.y += THREE.MathUtils.degToRad(craneoYawDeg);
     hCraneo.rotation.z += THREE.MathUtils.degToRad(craneoRollDeg) - acumFrontal * 0.35;
 
-    // Cintura Escapular + Separación dinámica de brazos y manos según volumen corporal
+    // Cintura Escapular + Apertura dinámica hacia afuera (+s) según volumen corporal
     const protraccionRad = THREE.MathUtils.degToRad(hombrosAdelantadosDeg);
     const aladaRad = THREE.MathUtils.degToRad(escapulasAladasDeg);
     const asimM = (asimetriaHombrosCm / 100) / escalaAltura;
 
-    const extraMusc = Math.max(0, ((ultimoParams.musculoGlobalKg ?? 32) - 32) / 25) * 0.10;
-    const extraGrasa = Math.max(0, ((ultimoParams.grasaTotalPct ?? 18) - 18) / 30) * 0.14;
-    const extraDorsal = Math.max(0, ((ultimoParams.dorsalAnchoNivel ?? 4) - 4) / 6) * 0.08;
+    const extraMusc = Math.max(0, ((ultimoParams.musculoGlobalKg ?? 32) - 32) / 25) * 0.12;
+    const extraGrasa = Math.max(0, ((ultimoParams.grasaTotalPct ?? 18) - 18) / 30) * 0.16;
+    const extraDorsal = Math.max(0, ((ultimoParams.dorsalAnchoNivel ?? 4) - 4) / 6) * 0.10;
     const abduccionExtra = extraMusc + extraGrasa + extraDorsal + Math.max(0, morfologiaTorax - 1.0) * 0.25;
 
     function aplicarCinturaEscapular(cad, lado) {
@@ -581,10 +582,11 @@ export function crearCapaEsqueleto(opciones = {}) {
       cad.hEscapula.rotation.x += aladaRad * 0.35;
       cad.hEscapula.rotation.y += -s * (aladaRad + protraccionRad * 0.32);
 
-      cad.hHombro.position.x = s * 0.175 * anchoHombros * (1 + Math.max(0, morfologiaTorax - 1.0) * 0.5);
+      cad.hHombro.position.x = s * 0.185 * anchoHombros * (1 + Math.max(0, morfologiaTorax - 1.0) * 0.5);
       cad.hHombro.rotation.x += protraccionRad * 0.55;
       cad.hHombro.rotation.y += s * protraccionRad * 0.40;
-      cad.hHombro.rotation.z += -s * abduccionExtra;
+      // Signo POSITIVO (+s): abre el brazo más hacia afuera al crecer el torso
+      cad.hHombro.rotation.z += s * abduccionExtra;
     }
     aplicarCinturaEscapular(cadBrazoIzq, "L");
     aplicarCinturaEscapular(cadBrazoDer, "R");
@@ -607,70 +609,3 @@ export function crearCapaEsqueleto(opciones = {}) {
 
     sincronizarAnclajes();
   }
-
-  // ==========================================================================
-  // [BLOQUE 6] CARGADOR .GLB CON CAPTURA DE POSE NEUTRA Y EXPORTACIÓN
-  // Función: Importa un modelo .glb y exporta applyAnatomyState y actualizar.
-  // ==========================================================================
-  function cargarModeloGLB(url) {
-    if (!url) return Promise.resolve(false);
-    const loader = new GLTFLoader();
-    return new Promise((resolve, reject) => {
-      loader.load(
-        url,
-        (gltf) => {
-          contenedorGlb.clear();
-          huesosGlbMap = {};
-          restPoseGlb = {};
-          skinnedMeshGlb = null;
-
-          gltf.scene.traverse((obj) => {
-            if (obj.isBone) {
-              huesosGlbMap[obj.name] = obj;
-              restPoseGlb[obj.name] = {
-                position: obj.position.clone(),
-                rotation: obj.rotation.clone(),
-                scale: obj.scale.clone()
-              };
-            }
-            if (obj.isMesh) {
-              obj.castShadow = true;
-              obj.receiveShadow = true;
-              obj.material = materialHueso;
-              if (obj.isSkinnedMesh && !skinnedMeshGlb) {
-                skinnedMeshGlb = obj;
-              }
-            }
-          });
-
-          contenedorGlb.add(gltf.scene);
-          armatureRaiz.visible = false;
-          contenedorGlb.visible = true;
-          applyAnatomyState(ultimoParams);
-          resolve(true);
-        },
-        undefined,
-        (err) => reject(err)
-      );
-    });
-  }
-
-  if (opciones.urlModeloGlb) {
-    cargarModeloGLB(opciones.urlModeloGlb).catch(() => {
-      armatureRaiz.visible = true;
-      contenedorGlb.visible = false;
-    });
-  }
-
-  applyAnatomyState();
-
-  return {
-    group,
-    anclajes,
-    huesos,
-    restPose,
-    applyAnatomyState,
-    actualizar: applyAnatomyState,
-    cargarModeloGLB
-  };
-}
